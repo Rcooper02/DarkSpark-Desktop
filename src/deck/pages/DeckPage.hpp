@@ -32,13 +32,15 @@ class DeckPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit DeckPage(QString title, QWidget* parent = nullptr);
+    explicit DeckPage(QString title, QString subtitle = QString(),
+                      QWidget* parent = nullptr);
 
     /// Add a card. The page takes ownership via Qt parenting and places it
     /// according to the current column count and the card's size role.
     void addCard(cards::DashboardCard* card);
 
     [[nodiscard]] QString title() const;
+    [[nodiscard]] QString subtitle() const;
     [[nodiscard]] int cardCount() const;
 
 protected:
@@ -54,6 +56,7 @@ private:
     [[nodiscard]] static int spanForSize(const cards::DashboardCard* card, int columns);
 
     QString title_;
+    QString subtitle_;
     QGridLayout* grid_;
     QVector<cards::DashboardCard*> cards_;
     int currentColumns_ = 0;

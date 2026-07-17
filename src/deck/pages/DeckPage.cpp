@@ -26,18 +26,35 @@ constexpr int kMinColumns = 1;
 constexpr int kMaxColumns = 6;
 }  // namespace
 
-DeckPage::DeckPage(QString title, QWidget* parent)
-    : QWidget(parent), title_(std::move(title)), grid_(new QGridLayout) {
+DeckPage::DeckPage(QString title, QString subtitle, QWidget* parent)
+    : QWidget(parent), title_(std::move(title)), subtitle_(std::move(subtitle)),
+      grid_(new QGridLayout) {
     setObjectName(LegacyTheme::pageObjectName());
 
     auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(LegacyTheme::spaceXl(), LegacyTheme::spaceXl(),
-                             LegacyTheme::spaceXl(), LegacyTheme::spaceXl());
+    // Compact top/bottom margins so the header does not consume excessive
+    // vertical space on the 2560x720 target (docs/VISUAL_LANGUAGE.md).
+    root->setContentsMargins(LegacyTheme::space2xl(), LegacyTheme::spaceLg(),
+                             LegacyTheme::space2xl(), LegacyTheme::spaceLg());
     root->setSpacing(LegacyTheme::spaceLg());
 
-    auto* titleLabel = new QLabel(title_, this);
+    // --- Page header: title over a quieter subtitle, tightly grouped --------
+    auto* headerBlock = new QWidget(this);
+    headerBlock->setObjectName(LegacyTheme::pageHeaderObjectName());
+    auto* headerCol = new QVBoxLayout(headerBlock);
+    headerCol->setContentsMargins(0, 0, 0, 0);
+    headerCol->setSpacing(LegacyTheme::spaceXs());
+
+    auto* titleLabel = new QLabel(title_, headerBlock);
     titleLabel->setProperty("legacyRole", "pageTitle");
-    root->addWidget(titleLabel);
+    headerCol->addWidget(titleLabel);
+
+    if (!subtitle_.isEmpty()) {
+        auto* subtitleLabel = new QLabel(subtitle_, headerBlock);
+        subtitleLabel->setProperty("legacyRole", "pageSubtitle");
+        headerCol->addWidget(subtitleLabel);
+    }
+    root->addWidget(headerBlock);
 
     grid_->setHorizontalSpacing(LegacyTheme::spaceLg());
     grid_->setVerticalSpacing(LegacyTheme::spaceLg());
@@ -59,6 +76,8 @@ void DeckPage::addCard(DashboardCard* card) {
 }
 
 QString DeckPage::title() const { return title_; }
+
+QString DeckPage::subtitle() const { return subtitle_; }
 
 int DeckPage::cardCount() const { return static_cast<int>(cards_.size()); }
 

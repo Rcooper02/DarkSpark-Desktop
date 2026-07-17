@@ -6,45 +6,52 @@
 #include <QString>
 
 class QLabel;
-class QHBoxLayout;
+class QVBoxLayout;
+class QGraphicsDropShadowEffect;
 
 namespace darkspark::deck::cards {
 
+class StatusIndicator;
+
 /// Reusable presentation card for Deck Mode.
 ///
-/// A DashboardCard renders a title, an optional subtitle, and a status line
-/// with a small status indicator, styled by the Legacy theme. In Deck-1 it is
-/// still a pure placeholder: it collects no data, owns no service, and exposes
-/// no plugin API. It is a presentation component only, consistent with
-/// docs/FOUNDATION.md ("cards are reusable presentation components", "UI never
-/// collects or owns external data").
+/// A DashboardCard is organized into clear logical regions (docs/
+/// VISUAL_LANGUAGE.md page/card anatomy):
+///   - header:  title (+ status indicator)
+///   - subtitle: optional, quieter, clearly separated
+///   - divider:  optional thin separator
+///   - content:  meaningful placeholder region
+///   - footer:   status text region, consistently aligned at the bottom
 ///
-/// Visual state and accent are exposed as small enums and drive centralized
-/// styling via dynamic properties; the card carries no inline style sheet.
-/// State is always conveyed by a status label and indicator shape in addition
-/// to color, so meaning never depends on color alone (docs/STYLE_GUIDE.md).
+/// In Deck-1 it remains a pure placeholder: it collects no data, owns no
+/// service, and exposes no plugin API. It stays reusable for future CPU, GPU,
+/// media, chat, homepage, weather, and notification cards.
 ///
-/// The API is deliberately narrow and concrete. No base classes beyond this
-/// one are introduced.
+/// Visual state, accent, and size are exposed as small enums. State is conveyed
+/// by a painted StatusIndicator shape AND status text AND color, so meaning
+/// never depends on color alone (docs/STYLE_GUIDE.md). Semantic precedence
+/// (Error > Warning > Unavailable > Disabled > Loading > Interaction > Accent >
+/// Normal) is resolved in refreshVisualState() and expressed through a single
+/// "legacyState" property value plus a separate "legacyAccent" property.
 ///
-/// Ownership: a QWidget; owned by its Qt parent (typically a DeckPage).
-/// Threading: GUI thread only, like all QWidget subclasses.
+/// The API is deliberately narrow and concrete; no base classes beyond this one.
+///
+/// Ownership: a QWidget owned by its Qt parent (typically a DeckPage).
+/// Threading: GUI thread only.
 class DashboardCard : public QFrame {
     Q_OBJECT
 
 public:
-    /// Content/visual state of the card.
     enum class State {
-        Normal,       ///< ordinary presentation
-        Loading,      ///< data is being prepared (placeholder only in Deck-1)
-        Empty,        ///< no content to show (distinct from a false zero)
-        Unavailable,  ///< source/integration not present or not reachable
-        Warning,      ///< attention needed
-        Error,        ///< a failure state
-        Disabled      ///< not interactive
+        Normal,
+        Loading,
+        Empty,
+        Unavailable,
+        Warning,
+        Error,
+        Disabled
     };
 
-    /// Optional accent role for light visual differentiation.
     enum class Accent { None, Cyan, Purple };
 
     /// Presentation size role. A layout hint only; DeckPage interprets it. Not
@@ -55,17 +62,17 @@ public:
 
     // --- Content ------------------------------------------------------------
     void setTitle(const QString& title);
-    void setSubtitle(const QString& subtitle);  ///< empty hides the subtitle
-    void setStatusText(const QString& status);  ///< custom status line text
+    void setSubtitle(const QString& subtitle);      ///< empty hides the subtitle
+    void setStatusText(const QString& status);      ///< custom footer status text
+    /// Optional placeholder line shown in the content region. Empty shows a
+    /// default, quiet placeholder so the region still reads as intentional.
+    void setPlaceholderText(const QString& text);
 
     [[nodiscard]] QString title() const;
     [[nodiscard]] QString subtitle() const;
     [[nodiscard]] QString statusText() const;
 
     // --- State / accent / size ---------------------------------------------
-    /// Set the visual state. Updates the status indicator and, unless a custom
-    /// status text was set, a default human-readable status label for the
-    /// state. Also toggles interactivity for the Disabled state.
     void setState(State state);
     [[nodiscard]] State state() const;
 
@@ -76,9 +83,8 @@ public:
     [[nodiscard]] Size sizeRole() const;
 
 signals:
-    /// Emitted when the card is activated by touch/click or keyboard (Space or
-    /// Return) while not disabled. Deck-1 wires no behavior to this; it exists
-    /// so pages can respond later without changing the card API.
+    /// Emitted on activation by touch/click or keyboard (Space/Return) while not
+    /// disabled. Deck-1 wires no behavior to this.
     void activated();
 
 protected:
@@ -90,18 +96,24 @@ protected:
     void focusOutEvent(QFocusEvent* event) override;
 
 private:
-    /// Recompute the styled state property and re-polish so the style sheet
-    /// re-evaluates. `pressedOrFocused` transient visuals take precedence over
-    /// content state for the border treatment.
+    /// Resolve semantic precedence into a single "legacyState" property value
+    /// and re-polish so the centralized style sheet re-evaluates.
     void refreshVisualState();
-    /// Update the status indicator glyph and default status text for a state.
+    /// Update the status indicator, default status text, and dividers for the
+    /// current content state.
     void applyStateContent();
+    /// Enable or disable the controlled cyan focus/press glow.
+    void setGlowActive(bool active);
+
     [[nodiscard]] bool isInteractive() const;
 
     QLabel* titleLabel_;
     QLabel* subtitleLabel_;
+    QLabel* placeholderLabel_;
     QLabel* statusLabel_;
-    QLabel* statusDot_;
+    QFrame* divider_;
+    StatusIndicator* indicator_;
+    QGraphicsDropShadowEffect* glow_;
 
     State state_ = State::Normal;
     Accent accent_ = Accent::None;

@@ -7,65 +7,88 @@
 namespace darkspark::themes {
 
 // --- Color tokens -----------------------------------------------------------
-// Values mirror docs/design-system.md. Kept as literals in one place so the
-// theme remains the single source of truth.
+// Roles per docs/VISUAL_LANGUAGE.md. Deep neutral backgrounds, restrained cyan,
+// selective purple, high-contrast primary text, muted supporting text.
 QColor LegacyTheme::backgroundBase() { return QColor(0x05, 0x07, 0x0A); }
-QColor LegacyTheme::backgroundRaised() { return QColor(0x0B, 0x0F, 0x14); }
-QColor LegacyTheme::backgroundOverlay() { return QColor(0x11, 0x17, 0x21); }
-QColor LegacyTheme::borderSubtle() { return QColor(0x1C, 0x2A, 0x33); }
+QColor LegacyTheme::backgroundPage() { return QColor(0x06, 0x08, 0x0C); }
+QColor LegacyTheme::backgroundRaised() { return QColor(0x0D, 0x12, 0x18); }
+QColor LegacyTheme::backgroundOverlay() { return QColor(0x13, 0x1B, 0x24); }
+QColor LegacyTheme::backgroundDisabled() { return QColor(0x08, 0x0B, 0x0F); }
+QColor LegacyTheme::borderSubtle() { return QColor(0x18, 0x24, 0x2C); }
+QColor LegacyTheme::borderStrong() { return QColor(0x24, 0x33, 0x3D); }
 QColor LegacyTheme::borderActive() { return QColor(0x3F, 0xE0, 0xFF); }
 QColor LegacyTheme::accentCyan() { return QColor(0x3F, 0xE0, 0xFF); }
 QColor LegacyTheme::accentPurple() { return QColor(0x9B, 0x7B, 0xFF); }
 QColor LegacyTheme::textPrimary() { return QColor(0xE6, 0xF2, 0xF5); }
-QColor LegacyTheme::textSecondary() { return QColor(0x9B, 0xB0, 0xB8); }
-QColor LegacyTheme::textDisabled() { return QColor(0x4A, 0x5A, 0x62); }
+QColor LegacyTheme::textSecondary() { return QColor(0x8A, 0x9E, 0xA8); }
+QColor LegacyTheme::textDisabled() { return QColor(0x45, 0x54, 0x5C); }
 QColor LegacyTheme::statusWarning() { return QColor(0xFF, 0xC2, 0x4B); }
 QColor LegacyTheme::statusError() { return QColor(0xFF, 0x5C, 0x6C); }
 QColor LegacyTheme::statusGood() { return QColor(0x4B, 0xE3, 0x8A); }
 
-// --- Metric tokens ----------------------------------------------------------
+// --- Spacing ----------------------------------------------------------------
 int LegacyTheme::spaceXs() { return 4; }
 int LegacyTheme::spaceSm() { return 8; }
 int LegacyTheme::spaceMd() { return 12; }
 int LegacyTheme::spaceLg() { return 16; }
 int LegacyTheme::spaceXl() { return 24; }
-int LegacyTheme::spaceXxl() { return 32; }
+int LegacyTheme::space2xl() { return 32; }
+int LegacyTheme::space3xl() { return 48; }
+
+// --- Border / radius --------------------------------------------------------
 int LegacyTheme::borderHairline() { return 1; }
 int LegacyTheme::borderThin() { return 2; }
-int LegacyTheme::radiusSm() { return 4; }
-int LegacyTheme::radiusMd() { return 8; }
+int LegacyTheme::radiusSm() { return 6; }
+int LegacyTheme::radiusMd() { return 10; }
 int LegacyTheme::radiusLg() { return 12; }
 int LegacyTheme::touchTargetMin() { return 44; }
 
-// --- Typography -------------------------------------------------------------
-int LegacyTheme::fontSizeTitle() { return 22; }
-int LegacyTheme::fontSizeSubtitle() { return 18; }
-int LegacyTheme::fontSizeBody() { return 15; }
-int LegacyTheme::fontSizeCaption() { return 13; }
+// --- Typography (px), docs/VISUAL_LANGUAGE.md scale -------------------------
+int LegacyTheme::fontApplicationTitle() { return 28; }
+int LegacyTheme::fontPageTitle() { return 26; }
+int LegacyTheme::fontPageSubtitle() { return 15; }
+int LegacyTheme::fontCardTitle() { return 20; }
+int LegacyTheme::fontCardSubtitle() { return 14; }
+int LegacyTheme::fontPrimaryValue() { return 34; }
+int LegacyTheme::fontSupporting() { return 13; }
+int LegacyTheme::fontStatus() { return 12; }
+int LegacyTheme::fontAnnotation() { return 11; }
 
 // --- Motion -----------------------------------------------------------------
 int LegacyTheme::motionFast() { return 120; }
 int LegacyTheme::motionStandard() { return 220; }
 
+// --- Glow -------------------------------------------------------------------
+int LegacyTheme::glowRadius() { return 16; }
+
 // --- Object names -----------------------------------------------------------
 QString LegacyTheme::cardObjectName() { return QStringLiteral("LegacyCard"); }
+QString LegacyTheme::cardHeaderObjectName() { return QStringLiteral("LegacyCardHeader"); }
+QString LegacyTheme::cardContentObjectName() { return QStringLiteral("LegacyCardContent"); }
+QString LegacyTheme::cardDividerObjectName() { return QStringLiteral("LegacyCardDivider"); }
 QString LegacyTheme::pageObjectName() { return QStringLiteral("LegacyPage"); }
+QString LegacyTheme::pageHeaderObjectName() { return QStringLiteral("LegacyPageHeader"); }
 QString LegacyTheme::exitButtonObjectName() { return QStringLiteral("LegacyExitButton"); }
-QString LegacyTheme::statusDotObjectName() { return QStringLiteral("LegacyStatusDot"); }
 
 QString LegacyTheme::styleSheet() {
-    // A single centralized style sheet. Selectors are scoped by object name and
-    // dynamic properties so only DarkSpark widgets are affected and styling is
-    // not duplicated inline. No external fonts or icons are referenced.
+    // Single centralized style sheet. Selectors are scoped by object name and
+    // dynamic properties (legacyRole, legacyState, legacyAccent). No inline
+    // per-widget stylesheets exist elsewhere. No external fonts or icons.
     //
-    // Card visual states are driven by the "legacyState" dynamic property set
-    // by DashboardCard. Accent is driven by "legacyAccent". Because Qt Style
-    // Sheets only re-evaluate property selectors when the property changes and
-    // style is re-polished, DashboardCard re-polishes itself on state changes.
+    // Semantic precedence (docs/VISUAL_LANGUAGE.md + batch spec):
+    //   Error > Warning > Unavailable > Disabled > Loading > Interaction >
+    //   Accent > Normal.
+    // The card sets exactly one winning value into the "legacyState" property
+    // (see DashboardCard::refreshVisualState), so precedence is resolved in C++
+    // and the sheet only needs one selector per resolved value. Accent is a
+    // separate property applied only when no state/interaction overrides it.
     const QString base = backgroundBase().name();
+    const QString page = backgroundPage().name();
     const QString raised = backgroundRaised().name();
     const QString overlay = backgroundOverlay().name();
+    const QString disabledSurface = backgroundDisabled().name();
     const QString subtle = borderSubtle().name();
+    const QString strong = borderStrong().name();
     const QString active = borderActive().name();
     const QString cyan = accentCyan().name();
     const QString purple = accentPurple().name();
@@ -77,98 +100,137 @@ QString LegacyTheme::styleSheet() {
 
     QString sheet;
 
-    // Base widget + page container.
+    // Base widget + page surfaces.
     sheet += QStringLiteral(
                  "QWidget { background-color: %1; color: %2; font-size: %3px; }"
-                 "QWidget#%4 { background-color: transparent; }")
+                 "QWidget#%4 { background-color: %5; }")
                  .arg(base, textPri)
-                 .arg(fontSizeBody())
-                 .arg(pageObjectName());
+                 .arg(fontSupporting())
+                 .arg(pageObjectName(), page);
 
-    // Card: raised surface, thin illuminated border, rounded. Default (Normal).
+    // Card: slightly elevated surface, restrained idle border (border.strong is
+    // used for separation but kept low intensity), rounded corners. Idle cards
+    // do NOT glow (calm when idle).
     sheet += QStringLiteral(
                  "QFrame#%1 { background-color: %2; border: %3px solid %4;"
                  " border-radius: %5px; }")
                  .arg(cardObjectName(), raised)
                  .arg(borderHairline())
-                 .arg(subtle)
-                 .arg(radiusLg());
+                 .arg(strong)
+                 .arg(radiusMd());  // cards: 10px (docs/VISUAL_LANGUAGE.md)
 
-    // Focus + pressed feedback (keyboard focus visible; touch press feedback).
+    // Accent (lowest precedence above Normal): a quiet tint on the idle border.
+    // Applied only when legacyState == "normal" so state/interaction always win.
     sheet += QStringLiteral(
-                 "QFrame#%1[legacyState=\"focused\"] { border: %2px solid %3; }"
-                 "QFrame#%1[legacyState=\"pressed\"] { border: %2px solid %4;"
-                 " background-color: %5; }")
-                 .arg(cardObjectName())
-                 .arg(borderThin())
-                 .arg(active, cyan, overlay);
-
-    // Non-normal content states. Each pairs a border/text tint with a distinct
-    // status label + dot (color is never the sole signal; see DashboardCard).
-    sheet += QStringLiteral(
-                 "QFrame#%1[legacyState=\"loading\"] { border: %2px solid %3; }"
-                 "QFrame#%1[legacyState=\"empty\"] { border: %4px dashed %3; }"
-                 "QFrame#%1[legacyState=\"unavailable\"] { border: %4px dashed %5; }"
-                 "QFrame#%1[legacyState=\"warning\"] { border: %2px solid %6; }"
-                 "QFrame#%1[legacyState=\"error\"] { border: %2px solid %7; }"
-                 "QFrame#%1[legacyState=\"disabled\"] { border: %4px solid %5;"
-                 " background-color: %8; }")
-                 .arg(cardObjectName())
-                 .arg(borderThin())
-                 .arg(subtle)
-                 .arg(borderHairline())
-                 .arg(textDis, warn, err, base);
-
-    // Accent roles: a subtle top-of-mind accent on the border when requested.
-    sheet += QStringLiteral(
-                 "QFrame#%1[legacyAccent=\"cyan\"] { border-color: %2; }"
-                 "QFrame#%1[legacyAccent=\"purple\"] { border-color: %3; }")
+                 "QFrame#%1[legacyState=\"normal\"][legacyAccent=\"cyan\"]"
+                 " { border-color: %2; }"
+                 "QFrame#%1[legacyState=\"normal\"][legacyAccent=\"purple\"]"
+                 " { border-color: %3; }")
                  .arg(cardObjectName(), cyan, purple);
 
-    // Text roles inside cards.
+    // Interaction: focus and pressed keep the SAME border width as idle
+    // (borderHairline) to guarantee no layout shift (docs/VISUAL_LANGUAGE.md
+    // "no large layout shift"). Emphasis comes from a brighter cyan border
+    // color plus a controlled cyan glow applied as a QGraphicsDropShadowEffect
+    // in DashboardCard (style sheets cannot render glow). Pressed additionally
+    // uses a subtle background illumination.
     sheet += QStringLiteral(
-                 "QLabel[legacyRole=\"cardTitle\"] { color: %1; font-size: %2px;"
-                 " font-weight: 600; }"
-                 "QLabel[legacyRole=\"cardSubtitle\"] { color: %3; font-size: %4px; }"
-                 "QLabel[legacyRole=\"cardStatus\"] { color: %3; font-size: %5px; }"
-                 "QLabel[legacyRole=\"pageTitle\"] { color: %6; font-size: %7px;"
-                 " font-weight: 600; }"
-                 "QLabel[legacyRole=\"cardStatus\"][legacyState=\"warning\"]"
-                 " { color: %8; }"
-                 "QLabel[legacyRole=\"cardStatus\"][legacyState=\"error\"]"
-                 " { color: %9; }"
-                 "QLabel[legacyRole=\"cardTitle\"][legacyState=\"disabled\"]"
-                 " { color: %10; }")
-                 .arg(cyan)
-                 .arg(fontSizeSubtitle())
-                 .arg(textSec)
-                 .arg(fontSizeBody())
-                 .arg(fontSizeCaption())
+                 "QFrame#%1[legacyState=\"focused\"]"
+                 " { border: %2px solid %3; background-color: %4; }"
+                 "QFrame#%1[legacyState=\"pressed\"]"
+                 " { border: %2px solid %3; background-color: %5; }")
+                 .arg(cardObjectName())
+                 .arg(borderHairline())
+                 .arg(active, raised, overlay);
+
+    // Content states (higher precedence). Only one is ever active at a time.
+    sheet += QStringLiteral(
+                 "QFrame#%1[legacyState=\"loading\"]"
+                 " { border: %2px solid %3; }"
+                 "QFrame#%1[legacyState=\"empty\"]"
+                 " { border: %2px solid %4; }"
+                 "QFrame#%1[legacyState=\"unavailable\"]"
+                 " { border: %2px dashed %5; }"
+                 "QFrame#%1[legacyState=\"disabled\"]"
+                 " { border: %2px solid %4; background-color: %6; }"
+                 "QFrame#%1[legacyState=\"warning\"]"
+                 " { border: %7px solid %8; }"
+                 "QFrame#%1[legacyState=\"error\"]"
+                 " { border: %7px solid %9; }")
+                 .arg(cardObjectName())
+                 .arg(borderHairline())
+                 .arg(subtle)         // loading: quiet
+                 .arg(strong)         // empty: structural
+                 .arg(textDis)        // unavailable: dashed muted
+                 .arg(disabledSurface)
+                 .arg(borderThin())
+                 .arg(warn, err);
+
+    // Optional divider between header and content.
+    sheet += QStringLiteral(
+                 "QFrame#%1 { background-color: %2; border: none;"
+                 " max-height: %3px; min-height: %3px; }")
+                 .arg(cardDividerObjectName(), subtle)
+                 .arg(borderHairline());
+
+    // Header/content containers are transparent so the card surface shows.
+    sheet += QStringLiteral(
+                 "QWidget#%1, QWidget#%2 { background-color: transparent; }")
+                 .arg(cardHeaderObjectName(), cardContentObjectName());
+
+    // Text roles. Weight provides hierarchy before color (VISUAL_LANGUAGE.md).
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"pageTitle\"]"
+                 " { color: %1; font-size: %2px; font-weight: 700;"
+                 " letter-spacing: 1px; }"
+                 "QLabel[legacyRole=\"pageSubtitle\"]"
+                 " { color: %3; font-size: %4px; font-weight: 400; }"
+                 "QLabel[legacyRole=\"cardTitle\"]"
+                 " { color: %5; font-size: %6px; font-weight: 600; }"
+                 "QLabel[legacyRole=\"cardSubtitle\"]"
+                 " { color: %3; font-size: %7px; font-weight: 400; }"
+                 "QLabel[legacyRole=\"placeholder\"]"
+                 " { color: %3; font-size: %8px; font-weight: 400; }"
+                 "QLabel[legacyRole=\"statusText\"]"
+                 " { color: %3; font-size: %9px; font-weight: 400; }")
                  .arg(textPri)
-                 .arg(fontSizeTitle())
+                 .arg(fontPageTitle())
+                 .arg(textSec)
+                 .arg(fontPageSubtitle())
+                 .arg(textPri)
+                 .arg(fontCardTitle())
+                 .arg(fontCardSubtitle())
+                 .arg(fontSupporting())
+                 .arg(fontStatus());
+
+    // Status text escalates in color only for warning/error (state over accent;
+    // color reinforces, never sole signal).
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"statusText\"][legacyState=\"warning\"]"
+                 " { color: %1; font-weight: 600; }"
+                 "QLabel[legacyRole=\"statusText\"][legacyState=\"error\"]"
+                 " { color: %2; font-weight: 600; }"
+                 "QLabel[legacyRole=\"cardTitle\"][legacyState=\"disabled\"]"
+                 " { color: %3; }"
+                 "QLabel[legacyRole=\"cardSubtitle\"][legacyState=\"disabled\"]"
+                 " { color: %3; }")
                  .arg(warn, err, textDis);
 
-    // Status indicator dot: a small shaped indicator. Shape/opacity plus the
-    // status text carry meaning so color is not the only signal.
-    sheet += QStringLiteral(
-                 "QLabel#%1 { font-size: %2px; }")
-                 .arg(statusDotObjectName())
-                 .arg(fontSizeBody());
-
-    // Buttons: touch-sized, thin border, cyan on focus/press. (Exit control.)
+    // Buttons (Exit control). Touch-sized; cyan on focus; red intent on the
+    // exit control hover/focus.
     sheet += QStringLiteral(
                  "QPushButton { background-color: %1; color: %2; border: %3px solid %4;"
                  " border-radius: %5px; padding: 10px 18px; min-height: %6px; }"
-                 "QPushButton:hover, QPushButton:focus { border-color: %7; color: %8; }"
-                 "QPushButton:pressed { border-color: %9; }"
-                 "QPushButton:disabled { color: %10; border-color: %4; }"
-                 "QPushButton#%11:hover, QPushButton#%11:focus { border-color: %12; }")
+                 "QPushButton:hover, QPushButton:focus { border-color: %7; color: %7; }"
+                 "QPushButton:pressed { border-color: %8; }"
+                 "QPushButton:disabled { color: %9; border-color: %4; }"
+                 "QPushButton#%10:hover, QPushButton#%10:focus { border-color: %11; color: %11; }")
                  .arg(overlay, textPri)
                  .arg(borderHairline())
-                 .arg(subtle)
-                 .arg(radiusMd())
+                 .arg(strong)
+                 .arg(radiusSm())  // small controls: 6px
                  .arg(touchTargetMin())
-                 .arg(active, cyan, purple, textDis)
+                 .arg(cyan, purple, textDis)
                  .arg(exitButtonObjectName(), err);
 
     return sheet;
