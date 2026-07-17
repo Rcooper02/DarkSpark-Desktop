@@ -65,7 +65,8 @@ public:
     static int radiusSm();         ///< small controls (6)
     static int radiusMd();         ///< cards (10)
     static int radiusLg();         ///< large surfaces (12)
-    static int touchTargetMin();   ///< 44
+    static int touchTargetMin();       ///< 44
+    static int touchTargetPreferred(); ///< 52 (preferred for primary controls)
 
     // --- Typography sizes (px), docs/VISUAL_LANGUAGE.md typography scale ----
     static int fontApplicationTitle();  ///< 28

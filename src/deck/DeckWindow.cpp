@@ -83,8 +83,9 @@ DeckWindow::DeckWindow(QWidget* parent)
     // user can leave Deck Mode without a keyboard.
     auto* exitButton = new QPushButton(QStringLiteral("Exit"), this);
     exitButton->setObjectName(LegacyTheme::exitButtonObjectName());
+    // Primary control: preferred 52px touch target height.
     exitButton->setMinimumSize(LegacyTheme::touchTargetMin() * 2,
-                               LegacyTheme::touchTargetMin());
+                               LegacyTheme::touchTargetPreferred());
     exitButton->setCursor(Qt::PointingHandCursor);
     connect(exitButton, &QPushButton::clicked, this, &DeckWindow::exitRequested);
 

@@ -42,6 +42,7 @@ int LegacyTheme::radiusSm() { return 6; }
 int LegacyTheme::radiusMd() { return 10; }
 int LegacyTheme::radiusLg() { return 12; }
 int LegacyTheme::touchTargetMin() { return 44; }
+int LegacyTheme::touchTargetPreferred() { return 52; }
 
 // --- Typography (px), docs/VISUAL_LANGUAGE.md scale -------------------------
 int LegacyTheme::fontApplicationTitle() { return 28; }
@@ -177,6 +178,16 @@ QString LegacyTheme::styleSheet() {
     sheet += QStringLiteral(
                  "QWidget#%1, QWidget#%2 { background-color: transparent; }")
                  .arg(cardHeaderObjectName(), cardContentObjectName());
+
+    // Application title: the strongest identity treatment, used sparingly for
+    // application identity (e.g. the Desktop window), distinct from pageTitle.
+    // Kept in its own block to avoid multi-digit style-arg placeholders.
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"applicationTitle\"]"
+                 " { color: %1; font-size: %2px; font-weight: 700;"
+                 " letter-spacing: 1px; }")
+                 .arg(textPri)
+                 .arg(fontApplicationTitle());
 
     // Text roles. Weight provides hierarchy before color (VISUAL_LANGUAGE.md).
     sheet += QStringLiteral(

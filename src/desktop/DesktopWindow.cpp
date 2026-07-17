@@ -22,11 +22,11 @@ DesktopWindow::DesktopWindow(QWidget* parent) : QWidget(parent) {
     root->addStretch(1);
 
     auto* title = new QLabel(QStringLiteral("DarkSpark Desktop"), this);
-    title->setProperty("legacyRole", "pageTitle");
+    title->setProperty("legacyRole", "applicationTitle");
     title->setAlignment(Qt::AlignCenter);
 
     auto* motto = new QLabel(QStringLiteral("Knowledge Belongs to All."), this);
-    motto->setProperty("legacyRole", "cardStatus");
+    motto->setProperty("legacyRole", "statusText");
     motto->setAlignment(Qt::AlignCenter);
 
     auto* conceptLabel = new QLabel(QStringLiteral("Desktop Command Center"), this);
@@ -34,8 +34,9 @@ DesktopWindow::DesktopWindow(QWidget* parent) : QWidget(parent) {
     conceptLabel->setAlignment(Qt::AlignCenter);
 
     auto* launch = new QPushButton(QStringLiteral("Launch Deck Mode"), this);
+    // Primary control: preferred 52px touch target height.
     launch->setMinimumSize(LegacyTheme::touchTargetMin() * 4,
-                           LegacyTheme::touchTargetMin());
+                           LegacyTheme::touchTargetPreferred());
     launch->setCursor(Qt::PointingHandCursor);
     connect(launch, &QPushButton::clicked, this, &DesktopWindow::launchDeckRequested);
 
