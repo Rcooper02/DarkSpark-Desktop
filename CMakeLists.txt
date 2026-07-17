@@ -58,6 +58,8 @@ qt_add_executable(darkspark-desktop
     src/main.cpp
     src/application/Application.cpp
     src/application/Application.hpp
+    src/models/MetricSample.cpp
+    src/models/MetricSample.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -87,3 +89,29 @@ target_link_libraries(darkspark-desktop PRIVATE
 
 install(TARGETS darkspark-desktop
     RUNTIME DESTINATION bin)
+
+# --- Tests -------------------------------------------------------------------
+# Dependency-free model tests. The model layer has no Qt/UI/service dependency,
+# so the test target compiles MetricSample.cpp directly and does NOT link Qt.
+# It links only darkspark_warnings so tests build under the same strict policy.
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(darkspark-models-test
+        tests/models/MetricSampleTest.cpp
+        src/models/MetricSample.cpp
+    )
+
+    target_include_directories(darkspark-models-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+
+    target_link_libraries(darkspark-models-test PRIVATE
+        darkspark_warnings
+    )
+
+    add_test(
+        NAME darkspark-models-test
+        COMMAND darkspark-models-test
+    )
+endif()
