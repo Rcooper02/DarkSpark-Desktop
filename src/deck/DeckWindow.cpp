@@ -14,7 +14,6 @@
 #include <QWindow>
 
 #include <initializer_list>
-#include <utility>
 
 namespace darkspark::deck {
 
@@ -24,24 +23,51 @@ using pages::DeckPage;
 using themes::LegacyTheme;
 
 namespace {
-// The five placeholder pages required by the Deck-0 spec, with a couple of
-// placeholder cards each. No integration logic — titles and status text only.
+// Placeholder card definition. All content is placeholder-only: no data
+// source, no integration. `subtitle` may be empty. `state` and `size` exercise
+// the upgraded DashboardCard presentation. A couple of non-Normal states are
+// used deliberately to show the visual-state treatments; they do not represent
+// real conditions.
+struct CardPlan {
+    const char* title;
+    const char* subtitle;
+    DashboardCard::Size size;
+    DashboardCard::Accent accent;
+    DashboardCard::State state;
+};
+
 struct PagePlan {
     const char* title;
-    std::initializer_list<std::pair<const char*, const char*>> cards;
+    std::initializer_list<CardPlan> cards;
 };
+
+using S = DashboardCard::Size;
+using A = DashboardCard::Accent;
+using St = DashboardCard::State;
 
 const std::initializer_list<PagePlan> kPagePlans = {
     {"Command",
-     {{"Quick Actions", "Placeholder"}, {"Shortcuts", "Placeholder"}}},
+     {{"Quick Actions", "Common controls", S::Wide, A::Cyan, St::Normal},
+      {"Recent Activity", "Nothing yet", S::Medium, A::None, St::Empty},
+      {"System Summary", "At a glance", S::Large, A::Purple, St::Normal}}},
     {"System",
-     {{"Overview", "No data source"}, {"Load", "No data source"}}},
+     {{"CPU", "Utilization", S::Medium, A::Cyan, St::Normal},
+      {"Memory", "In use", S::Medium, A::Cyan, St::Normal},
+      {"GPU", "Utilization", S::Medium, A::Purple, St::Normal},
+      {"Storage", "Capacity", S::Medium, A::None, St::Normal},
+      {"Network", "Throughput", S::Medium, A::None, St::Unavailable}}},
     {"Media",
-     {{"Now Playing", "Placeholder"}, {"Transport", "Placeholder"}}},
+     {{"Now Playing", "Nothing playing", S::Large, A::Cyan, St::Empty},
+      {"Playback Controls", "Transport", S::Wide, A::None, St::Disabled},
+      {"Output Device", "Default", S::Medium, A::Purple, St::Normal}}},
     {"Communications",
-     {{"Messages", "Placeholder"}, {"Presence", "Placeholder"}}},
+     {{"Chat", "No conversations", S::Large, A::Cyan, St::Empty},
+      {"Notifications", "None", S::Medium, A::None, St::Normal},
+      {"Presence", "Status", S::Medium, A::Purple, St::Warning}}},
     {"Home",
-     {{"Rooms", "Placeholder"}, {"Scenes", "Placeholder"}}},
+     {{"Homepage", "Dashboard", S::Wide, A::Cyan, St::Loading},
+      {"Weather", "Not configured", S::Medium, A::None, St::Unavailable},
+      {"Calendar", "No events", S::Large, A::Purple, St::Empty}}},
 };
 }  // namespace
 
@@ -80,9 +106,15 @@ DeckWindow::DeckWindow(QWidget* parent)
 void DeckWindow::buildPages() {
     for (const auto& plan : kPagePlans) {
         auto* page = new DeckPage(QString::fromUtf8(plan.title));
-        for (const auto& card : plan.cards) {
-            page->addCard(new DashboardCard(QString::fromUtf8(card.first),
-                                            QString::fromUtf8(card.second)));
+        for (const auto& cardPlan : plan.cards) {
+            auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
+            if (cardPlan.subtitle != nullptr && cardPlan.subtitle[0] != '\0') {
+                card->setSubtitle(QString::fromUtf8(cardPlan.subtitle));
+            }
+            card->setSizeRole(cardPlan.size);
+            card->setAccent(cardPlan.accent);
+            card->setState(cardPlan.state);
+            page->addCard(card);
         }
         pageManager_->addPage(page);
     }
