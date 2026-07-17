@@ -50,7 +50,9 @@ neither UI nor services; UI depends only on interfaces and models).
 
 ```
 src/
-  models/       (new)  MetricSample, MetricId, MetricState, MetricUnit
+  models/       (new)  MetricSample.{hpp,cpp} — MetricId, MetricUnit,
+                       MetricState, MonotonicTimestamp defined here for
+                       the initial slice (extractable later)
   interfaces/   (new)  ITelemetryProvider
   services/     (new)  CpuTelemetryService  (implements ITelemetryProvider)
   deck/
@@ -114,7 +116,7 @@ Arrows read "may depend on." No arrow points into UI from a service or model.
 Metric identity is a strongly typed enum, not a bare string.
 
 ```cpp
-// models/MetricId.hpp
+// MetricSample.hpp (MetricId defined here for the initial slice)
 namespace darkspark::models {
 
 enum class MetricId {
@@ -138,7 +140,7 @@ without weakening the type.
 ### Model shape
 
 ```cpp
-// models/MetricUnit.hpp
+// MetricSample.hpp (MetricUnit defined here for the initial slice)
 namespace darkspark::models {
 
 enum class MetricUnit {
@@ -149,7 +151,7 @@ enum class MetricUnit {
 ```
 
 ```cpp
-// models/MetricState.hpp
+// MetricSample.hpp (MetricState defined here for the initial slice)
 namespace darkspark::models {
 
 // Independent of DashboardCard::State by design. The UI maps from this to a
@@ -168,65 +170,106 @@ enum class MetricState {
 #include <cstdint>
 #include <optional>
 
-#include "models/MetricId.hpp"
-#include "models/MetricState.hpp"
-#include "models/MetricUnit.hpp"
-
 namespace darkspark::models {
 
-// A plain, copyable data value. No UI dependency, no service dependency.
-struct MetricSample {
-    MetricId id{MetricId::CpuTotalUtilization};
-    std::optional<double> value{};   // absent unless state has a valid value
-    MetricUnit unit{MetricUnit::Percent};
-    MetricState state{MetricState::Unavailable};
-    // Monotonic milliseconds since an arbitrary fixed origin, used only for
-    // freshness reasoning and diagnostics. See "Timestamp representation".
-    std::int64_t monotonic_ms{0};
+// For the initial telemetry slice, MetricId, MetricUnit, and MetricState are
+// defined in MetricSample.hpp. This is a starting-point choice for the first
+// slice, not a permanent architectural rule: these types may be extracted into
+// their own headers later without changing the architecture.
 
-    // Named constructors express the invariants at the only points a sample is
-    // created, so an invalid combination cannot be built by accident.
-    static MetricSample unavailable(MetricId id, std::int64_t monotonic_ms);
+// Project-owned timestamp alias so the representation stays abstract at the
+// model boundary and can change later without touching every signature.
+using MonotonicTimestamp = std::int64_t;  // monotonic milliseconds, fixed origin
+
+// A plain, passive value object. No UI dependency, no service dependency, and
+// no knowledge of where a value originated (the service owns the concept of the
+// "last valid sample"; the model only represents a stale metric).
+class MetricSample {
+public:
+    // Factory construction is the only construction path, so an invalid
+    // (state, value) combination cannot be built by accident. Architectural
+    // invariant: a Fresh sample shall never contain a non-finite numeric value
+    // (see "Floating-point invariant"). The enforcement mechanism is a T1
+    // decision.
+    static MetricSample unavailable(MetricId id, MonotonicTimestamp t);
     static MetricSample fresh(MetricId id, double value, MetricUnit unit,
-                              std::int64_t monotonic_ms);
-    static MetricSample stale(const MetricSample& last_valid,
-                              std::int64_t monotonic_ms);
+                              MonotonicTimestamp t);
+    // Passive stale construction: the caller (the service) supplies the last
+    // valid value and unit explicitly. MetricSample does not take a previous
+    // sample and does not reach into another sample's fields.
+    static MetricSample stale(MetricId id, double last_valid_value,
+                              MetricUnit unit, MonotonicTimestamp t);
+
+    [[nodiscard]] MetricId id() const;
+    [[nodiscard]] std::optional<double> value() const;
+    [[nodiscard]] MetricUnit unit() const;
+    [[nodiscard]] MetricState state() const;
+    [[nodiscard]] MonotonicTimestamp timestamp() const;
+
+    friend bool operator==(const MetricSample&, const MetricSample&) = default;
+
+private:
+    MetricSample() = default;  // used only by the factories
+
+    MetricId id_{MetricId::CpuTotalUtilization};
+    std::optional<double> value_{};
+    MetricUnit unit_{MetricUnit::Percent};
+    MetricState state_{MetricState::Unavailable};
+    MonotonicTimestamp timestamp_{0};
 };
 
 }  // namespace darkspark::models
 ```
 
-### Invariants (enforced by the named constructors and checked in tests)
+### Invariants (enforced by the factories and checked in tests)
 
-- **Unavailable has no numeric value.** `state == Unavailable` implies
-  `value == std::nullopt`.
-- **Fresh has a valid numeric value.** `state == Fresh` implies
-  `value.has_value()`.
-- **Stale may retain the last valid value** but is explicitly `state == Stale`.
-  `stale()` is constructed from a prior valid sample and carries that sample's
-  value forward while marking it stale.
-- **Missing data is never 0%.** There is no path that emits `value == 0.0` to
-  represent absence; absence is always `Unavailable` with no value.
+- **Unavailable has no numeric value.** `state() == Unavailable` implies
+  `value() == std::nullopt`.
+- **Fresh has a valid, finite numeric value.** `state() == Fresh` implies
+  `value().has_value()` and the value is finite.
+- **Stale retains a valid value but is explicitly `state() == Stale`.** The
+  `stale()` factory receives the last valid value and unit **directly** from
+  the caller (the service); `MetricSample` does not take another sample and
+  does not read another sample's fields. The model represents a stale metric;
+  it does not know where the value came from.
+- **Missing data is never 0%.** No path emits `value() == 0.0` to represent
+  absence; absence is always `Unavailable` with no value.
+- **A Fresh value is never non-finite.** Architectural invariant: a
+  `MetricSample` representing a Fresh value shall never contain a non-finite
+  numeric value (NaN, +Inf, -Inf). The enforcement mechanism (assertion,
+  contract, factory semantics) is left to T1.
+
+### Floating-point invariant
+
+Architectural invariant: **a `MetricSample` representing a Fresh value shall
+never contain a non-finite numeric value** (NaN, +Inf, -Inf). This guarantees
+no invalid floating-point value flows downstream through a `MetricSample`. The
+enforcement mechanism — assertion, contract/precondition, or factory semantics
+such as degrading a non-finite input to Unavailable — is deliberately left to
+the T1 implementation batch, which will fix and test it explicitly.
 
 ### Timestamp representation
 
-The specification uses a **single monotonic millisecond timestamp**
-(`monotonic_ms`), not both wall-clock and monotonic.
+The model exposes a **single monotonic timestamp** through the project-owned
+alias `MonotonicTimestamp` (currently `std::int64_t` milliseconds from a fixed
+origin), not both wall-clock and monotonic, and not a raw integer at the public
+boundary.
 
 Justification for the minimum representation: the only current consumers of the
-timestamp are (a) freshness reasoning — "is this sample newer than that one,
-has an expected tick elapsed" — and (b) diagnostics ordering. Both are
-correctly and robustly served by a monotonic clock, which is immune to
-wall-clock jumps (NTP steps, DST, manual changes). No current feature displays
-an absolute wall-clock time for a sample, correlates it with external
-wall-clock logs, or persists it, so a wall-clock field would be unused weight.
-If a later feature needs to show or persist absolute time (for example, a
-history view or an exported diagnostic bundle), a wall-clock field will be
-added at that point, with that need as its justification. This matches the
-directive to prefer the minimum timestamp representation.
+timestamp are (a) freshness reasoning — "is this sample newer than that one, has
+an expected tick elapsed" — and (b) diagnostics ordering. Both are correctly and
+robustly served by a monotonic clock, which is immune to wall-clock jumps (NTP
+steps, DST, manual changes). No current feature displays an absolute wall-clock
+time for a sample, correlates it with external wall-clock logs, or persists it,
+so a wall-clock field would be unused weight. If a later feature needs absolute
+time (a history view, an exported diagnostic bundle), a wall-clock field will be
+added at that point with that need as its justification. Using an alias means
+that later change need not touch every signature.
 
-Source: `QElapsedTimer` (monotonic) owned by the service, or
-`std::chrono::steady_clock`. The service stamps each sample at creation.
+Source (later stages): `QElapsedTimer` (monotonic) owned by the service, or
+`std::chrono::steady_clock`. The service stamps each sample at creation. In T1
+the timestamp is supplied to the factories as a plain value; the model does not
+read a clock.
 
 ---
 
@@ -270,7 +313,7 @@ public:
 signals:
     // Emitted on every sampling tick that produces a new sample, including
     // transitions into Unavailable/Stale. The UI connects to this.
-    void sampleChanged(const darkspark::models::MetricSample& sample);
+    void readingChanged(const darkspark::models::MetricSample& sample);
 };
 
 }  // namespace darkspark::interfaces
@@ -299,7 +342,7 @@ choice and is upheld: only `MetricSample` (a model value) is emitted.
 
 ### Connection lifetime
 
-- The UI side connects to `sampleChanged` using the standard
+- The UI side connects to `readingChanged` using the standard
   `QObject::connect` with a receiver `QObject*` context, so the connection is
   automatically removed when either the provider or the receiver is destroyed.
   No manual disconnect is required for correctness, and no dangling-slot call
@@ -417,8 +460,9 @@ utilization_percent = 100.0 * (d_total - d_idle) / d_total
 
 - Polling uses a **service-owned `QTimer`** running on the **application
   event-loop (GUI) thread**. No worker thread is introduced in this batch.
-- Default cadence: **1000 ms**, expressed as a named constant in the service
-  (no settings framework, no config file).
+- Default cadence: **1000 ms**, expressed as a **private named constant inside
+  `CpuTelemetryService`** (authoritative ruling). No settings, no configuration
+  files, and no global telemetry-configuration object are introduced.
 
 ### Why a synchronous `/proc/stat` read is acceptable here
 
@@ -444,48 +488,87 @@ only place concrete UI and concrete services are assembled). For this batch,
 `Application` will additionally:
 
 1. construct and own the `CpuTelemetryService`,
-2. obtain it as an `ITelemetryProvider`,
-3. connect the provider's `sampleChanged` signal to the System page's update
-   entry point (Section 9),
-4. call `start()`/`stop()` in step with the Deck lifecycle.
+2. own the `DeckWindow`,
+3. obtain the service as an `ITelemetryProvider`,
+4. connect the provider's `readingChanged` signal to
+   `DeckWindow::applyMetricSample(const MetricSample&)`,
+5. call `start()`/`stop()` in step with the Deck lifecycle.
 
-`DeckWindow` is a candidate secondary wiring point because it builds the pages;
-the specification fixes the owner as `Application` and has `Application` reach
-the System page through `DeckWindow`'s existing structure rather than giving
-the service any UI knowledge. The exact wiring call site (Application directly,
-versus Application handing the provider to DeckWindow to route to the System
-page) is finalized in the implementation batch against the authoritative
-sources; either keeps the service UI-agnostic.
+Fixed wiring ruling (authoritative):
+
+- `Application` owns both `CpuTelemetryService` and `DeckWindow`, and connects
+  `ITelemetryProvider::readingChanged` to
+  `DeckWindow::applyMetricSample(const MetricSample&)`.
+- `DeckWindow` routes the sample internally to the System `DeckPage`.
+- `Application` must not retrieve or manipulate a `DeckPage` or `DashboardCard`
+  directly.
+- `DeckWindow` and `DeckPage` must not expose `DashboardCard` pointers.
+- An unknown or currently unrepresented `MetricId` must be ignored safely at
+  the routing boundary (no crash, no fabricated card, no error state).
+
+This keeps the service UI-agnostic and confines all card knowledge to the page
+that owns the cards.
 
 ---
 
 ## 9. UI Data-Flow Boundary
 
-The service must not know about cards, and `DeckPage` must not expose
-`DashboardCard` pointers. A `MetricSample` reaches the correct card through an
-**intentional page-level update entry point**.
+The service must not know about cards. `DeckWindow` and `DeckPage` must not
+expose `DashboardCard` pointers. A `MetricSample` reaches the correct card
+through an **intentional window-level entry point that forwards to the page**.
 
 ### Entry point
 
-`DeckPage` gains a narrow, explicit slot-like method, for example:
+`DeckWindow` gains the public entry point the composition root connects to;
+`DeckWindow` forwards to the System `DeckPage`, which owns the card mapping:
+
+```cpp
+// deck/DeckWindow.hpp  (added in the implementation batch)
+public:
+    // Receive a telemetry sample and route it internally to the correct page.
+    // DeckWindow does not expose pages or cards to the caller.
+    void applyMetricSample(const darkspark::models::MetricSample& sample);
+```
 
 ```cpp
 // deck/pages/DeckPage.hpp  (added in the implementation batch)
 public:
-    // Apply a telemetry sample to the page. The page maps the sample's MetricId
-    // to the specific card it owns and updates that card's presentation. Cards
-    // are not exposed; the mapping stays inside the page.
+    // Apply a telemetry sample to this page. The page maps the sample's
+    // MetricId to the specific card it owns and updates that card's
+    // presentation. Cards are not exposed; the mapping stays inside the page.
     void applyMetricSample(const darkspark::models::MetricSample& sample);
 ```
 
+- `DeckWindow` routes the sample to the System `DeckPage`. `Application` never
+  touches a `DeckPage` or `DashboardCard` directly.
 - The page owns the private mapping from `MetricId` to the specific
-  `DashboardCard` it constructed (the System page maps
-  `CpuTotalUtilization` to its "CPU" card).
-- The page translates `MetricState` into the card's existing presentation
-  states (accepted in Batch-2): `Fresh` to a normal value display, `Stale` to
-  a stale/degraded presentation, `Unavailable` to the card's Unavailable state.
-  This mapping (`MetricState` to `DashboardCard::State`) lives at the UI
-  boundary, not in the model.
+  `DashboardCard` it constructed (the System page maps `CpuTotalUtilization` to
+  its "CPU" card).
+- An unknown or currently unrepresented `MetricId` is ignored safely at both
+  the window and page routing boundaries — no crash, no fabricated card, no
+  error state.
+
+### Fixed UI state mapping (authoritative, first CPU slice)
+
+The page translates `MetricState` into the card's existing Batch-2 presentation
+states. No new `DashboardCard` state is added in the telemetry batch. The
+mapping is:
+
+| `MetricState`          | `DashboardCard::State`      | Card content                              |
+| ---------------------- | --------------------------- | ----------------------------------------- |
+| `Fresh`                | `Normal`                    | current utilization percentage            |
+| `Unavailable`          | `Unavailable`               | no value (never 0%)                        |
+| `Stale`                | `Warning` (temporary)       | last valid percentage + status text "Stale" |
+
+- A `Stale` sample **retains and displays the last valid percentage** and must
+  show explicit status text such as "Stale".
+- The `Stale` to `Warning` mapping is a temporary presentation choice for this
+  slice, chosen to reuse an existing accepted state rather than introduce a new
+  one. It may be revisited when a dedicated stale/degraded presentation is
+  designed.
+- This mapping lives **only** in the UI layer (the page). `MetricState`
+  semantics are not changed to match `DashboardCard::State`; the model never
+  imports a UI enum.
 - The card continues to expose no data-collection or service behavior; it only
   renders what the page hands it.
 
@@ -495,20 +578,25 @@ public:
 /proc/stat
    |  (read + parse + delta, service-internal)
    v
-CpuTelemetryService  --emits-->  ITelemetryProvider::sampleChanged(MetricSample)
+CpuTelemetryService  --emits-->  ITelemetryProvider::readingChanged(MetricSample)
    |                                              |
    |  (owned + connected by Application)          |
    v                                              v
-Application  --routes sample to System page-->  DeckPage::applyMetricSample()
-                                                  |
-                                                  |  (page maps MetricId -> its card,
-                                                  |   maps MetricState -> DashboardCard::State)
-                                                  v
-                                             DashboardCard  (renders value / stale / unavailable)
+Application  --connects signal to-->  DeckWindow::applyMetricSample()
+                                          |
+                                          |  (routes by MetricId; unknown ids ignored)
+                                          v
+                                       DeckPage::applyMetricSample()
+                                          |
+                                          |  (page maps MetricId -> its card,
+                                          |   maps MetricState -> DashboardCard::State)
+                                          v
+                                       DashboardCard  (renders value / stale / unavailable)
 ```
 
-No arrow runs from the service to a card. The only UI-facing surface of the
-service is the interface signal carrying a model value.
+No arrow runs from the service to a card, and no arrow runs from `Application`
+to a page or card. The only UI-facing surface of the service is the interface
+signal carrying a model value.
 
 ---
 
@@ -599,54 +687,66 @@ Additional model-level tests:
   machine, and the model invariants are pure logic and run without Qt or real
   hardware.
 - **Fedora-only:** the live `QTimer` firing against the real `/proc/stat`, the
-  signal reaching `DeckPage::applyMetricSample`, and the CPU card visibly
-  updating about once per second.
+  signal reaching `DeckWindow::applyMetricSample` and forwarding to the System
+  `DeckPage`, and the CPU card visibly updating about once per second.
 
 ---
 
 ## 13. Implementation Batch Breakdown
 
-The implementation (separate from this specification) is proposed as small,
-reviewable steps, each stopping at a clean boundary:
+The implementation (separate from this specification) proceeds as four small,
+independently reviewable and independently reversible stages, each stopping at a
+clean boundary:
 
-- **T1 — Models.** `MetricId`, `MetricUnit`, `MetricState`, `MetricSample`
-  (with named constructors and invariants) + model unit tests. No service, no
-  UI.
-- **T2 — Interface + service calculation core.** `ITelemetryProvider`;
-  `CpuTelemetryService` parsing/formula/state-machine behind an internal seam,
-  driven by fixtures; the full test matrix (Sections 12) green. No timer wiring
-  to UI yet.
-- **T3 — Polling + composition-root wiring.** Service-owned `QTimer`;
-  `Application` owns the service and connects `sampleChanged`; `DeckPage`
-  gains `applyMetricSample` and the private `MetricId`-to-card mapping; the
-  System CPU card renders live/stale/unavailable. Fedora validation of the
-  live path.
+- **T1 — Models only.** `MetricId`, `MetricUnit`, `MetricState`, and
+  `MetricSample` (with factory construction and invariants) plus deterministic
+  model unit tests. No interface, no service, no `/proc`, no timers, no UI.
+- **T2 — `ITelemetryProvider`.** The abstract provider contract only
+  (`start`/`stop`/`currentSample`/`readingChanged`). No concrete service, no
+  `/proc` parsing, no timers, no UI wiring.
+- **T3 — `CpuTelemetryService`.** The concrete service implementing
+  `ITelemetryProvider`: `/proc/stat` parsing, the CPU formula, the state
+  machine, and the service-owned `QTimer` with the private 1000 ms cadence
+  constant, all driven and tested behind an internal seam with the full test
+  matrix (Section 12) green. No UI wiring.
+- **T4 — UI wiring.** `Application` owns the service and `DeckWindow` and
+  connects `readingChanged` to `DeckWindow::applyMetricSample`; `DeckWindow`
+  routes to the System `DeckPage`, which gains `applyMetricSample` and the
+  private `MetricId`-to-card mapping; the System CPU card renders
+  live / stale / unavailable. Fedora validation of the live path.
 
-Each step is delivered as its own patch against the then-current committed head,
-with `git apply --check` and a checksum, following the established workflow.
+Each stage is delivered as its own patch against the then-current committed
+head, with `git apply --check` and a checksum, following the established
+workflow.
 
 ---
 
-## 14. Unresolved Questions
+## 14. Resolved Rulings
 
-1. **Exact wiring call site (T3).** Whether `Application` connects the provider
-   directly to the System `DeckPage`, or hands the provider to `DeckWindow`
-   which routes to the System page, is left to the implementation batch to fix
-   against the authoritative sources. Both keep the service UI-agnostic; the
-   choice is a wiring detail, not an architectural one. Flagging so it is
-   decided deliberately at T3 rather than assumed now.
-2. **`MetricState` to `DashboardCard::State` mapping for Stale.** Batch-2 gives
-   the card a distinct set of states. This spec maps telemetry `Stale` onto the
-   card's degraded/stale presentation; if the accepted card state set does not
-   include a distinct "stale" presentation, the implementation batch will map
-   `Stale` to the closest accepted state and note it, rather than adding a new
-   card state under a telemetry batch.
-3. **Cadence constant location.** The 1000 ms cadence is a service-local named
-   constant in this design. If a later, properly-scoped settings/preferences
-   architecture is introduced, cadence becomes a candidate to move there; it is
-   deliberately not parameterized now to avoid speculative settings scaffolding.
+The three questions previously open in this section have been ruled on and are
+now authoritative. They are recorded here and reflected in Sections 8 and 9.
 
-No unresolved question blocks starting the T1 implementation batch.
+1. **T3 wiring (resolved).** `Application` owns both `CpuTelemetryService` and
+   `DeckWindow`, and connects `ITelemetryProvider::readingChanged` to
+   `DeckWindow::applyMetricSample(const MetricSample&)`. `DeckWindow` routes the
+   sample internally to the System `DeckPage`. `Application` must not retrieve
+   or manipulate a `DeckPage` or `DashboardCard` directly. `DeckWindow` and
+   `DeckPage` must not expose `DashboardCard` pointers. Unknown or currently
+   unrepresented `MetricId` values are ignored safely. See Sections 8 and 9.
+2. **UI state mapping (resolved).** For the first CPU slice:
+   `MetricState::Fresh` to `DashboardCard::State::Normal`,
+   `MetricState::Unavailable` to `DashboardCard::State::Unavailable`, and
+   `MetricState::Stale` to `DashboardCard::State::Warning` (temporary). A stale
+   sample retains and displays the last valid percentage and shows explicit
+   status text such as "Stale". No new `DashboardCard` state is added in the
+   telemetry batch. The mapping stays isolated inside the UI layer;
+   `MetricState` semantics are not changed to match `DashboardCard::State`. See
+   Section 9.
+3. **Cadence (resolved).** The 1000 ms cadence is a private named constant
+   inside `CpuTelemetryService`. No settings, configuration files, or global
+   telemetry-configuration object are introduced. See Section 8.
+
+No open question blocks starting the T1 implementation batch.
 
 ---
 
