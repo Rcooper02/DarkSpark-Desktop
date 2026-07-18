@@ -60,6 +60,7 @@ qt_add_executable(darkspark-desktop
     src/application/Application.hpp
     src/models/MetricSample.cpp
     src/models/MetricSample.hpp
+    src/interfaces/ITelemetryProvider.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
