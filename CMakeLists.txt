@@ -61,6 +61,8 @@ qt_add_executable(darkspark-desktop
     src/models/MetricSample.cpp
     src/models/MetricSample.hpp
     src/interfaces/ITelemetryProvider.hpp
+    src/services/CpuTelemetryService.cpp
+    src/services/CpuTelemetryService.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -114,5 +116,30 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-models-test
         COMMAND darkspark-models-test
+    )
+
+    # Service tests. CpuTelemetryService derives from QObject, so this target
+    # links Qt6::Core (never Qt6::Widgets). The service header is listed
+    # explicitly so AUTOMOC processes its Q_OBJECT for this target.
+    add_executable(darkspark-services-test
+        tests/services/CpuTelemetryServiceTest.cpp
+        src/services/CpuTelemetryService.cpp
+        src/services/CpuTelemetryService.hpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+
+    target_include_directories(darkspark-services-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+
+    target_link_libraries(darkspark-services-test PRIVATE
+        Qt6::Core
+        darkspark_warnings
+    )
+
+    add_test(
+        NAME darkspark-services-test
+        COMMAND darkspark-services-test
     )
 endif()
