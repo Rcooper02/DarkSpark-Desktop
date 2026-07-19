@@ -2,11 +2,13 @@
 #include "deck/pages/DeckPage.hpp"
 
 #include "deck/cards/DashboardCard.hpp"
+#include "models/MetricSample.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QGridLayout>
 #include <QLabel>
 #include <QResizeEvent>
+#include <QString>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -24,6 +26,23 @@ namespace {
 constexpr int kTargetCardWidth = 300;
 constexpr int kMinColumns = 1;
 constexpr int kMaxColumns = 6;
+
+// Local metric-to-card mapping. Deliberately a small direct lookup: this page
+// presents one telemetry metric today, and a registry or generalized routing
+// abstraction would be disproportionate. Returns nullptr for a metric this page
+// does not present.
+[[nodiscard]] const char* cardTitleForMetric(models::MetricId id) {
+    switch (id) {
+    case models::MetricId::CpuTotalUtilization:
+        return "CPU";
+    }
+    return nullptr;
+}
+
+/// Percentage rendered with a single decimal place, e.g. "37.2%".
+[[nodiscard]] QString formatPercent(double value) {
+    return QString::number(value, 'f', 1) + QStringLiteral("%");
+}
 }  // namespace
 
 DeckPage::DeckPage(QString title, QString subtitle, QWidget* parent)
@@ -80,6 +99,55 @@ QString DeckPage::title() const { return title_; }
 QString DeckPage::subtitle() const { return subtitle_; }
 
 int DeckPage::cardCount() const { return static_cast<int>(cards_.size()); }
+
+void DeckPage::receiveTelemetry(const models::MetricSample& sample) {
+    const char* wantedTitle = cardTitleForMetric(sample.id());
+    if (wantedTitle == nullptr) {
+        // Unknown or unrepresented metric: ignore safely.
+        return;
+    }
+
+    const QString title = QString::fromUtf8(wantedTitle);
+    DashboardCard* target = nullptr;
+    for (DashboardCard* card : cards_) {
+        if (card != nullptr && card->title() == title) {
+            target = card;
+            break;
+        }
+    }
+    if (target == nullptr) {
+        // This page does not hold the card for that metric; ignore safely.
+        return;
+    }
+
+    // Telemetry state to card presentation. This mapping is intentionally local
+    // to the page: MetricState semantics are not changed to match the card, and
+    // no new card state is introduced.
+    switch (sample.state()) {
+    case models::MetricState::Fresh:
+        target->setState(DashboardCard::State::Normal);
+        // Clearing custom status text restores the state's default footer text.
+        target->setStatusText(QString());
+        if (sample.value().has_value()) {
+            target->setPlaceholderText(formatPercent(*sample.value()));
+        }
+        break;
+    case models::MetricState::Stale:
+        target->setState(DashboardCard::State::Warning);
+        // Retain and show the last valid percentage, explicitly marked stale.
+        if (sample.value().has_value()) {
+            target->setPlaceholderText(formatPercent(*sample.value()));
+        }
+        target->setStatusText(QStringLiteral("Stale"));
+        break;
+    case models::MetricState::Unavailable:
+        target->setState(DashboardCard::State::Unavailable);
+        target->setStatusText(QString());
+        // Never show a misleading numeric value when no value exists.
+        target->setPlaceholderText(QString());
+        break;
+    }
+}
 
 int DeckPage::columnsForWidth(int contentWidth) const {
     const int margins = LegacyTheme::spaceXl() * 2;

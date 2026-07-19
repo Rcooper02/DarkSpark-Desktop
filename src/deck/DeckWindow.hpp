@@ -9,6 +9,12 @@ class QScreen;
 namespace darkspark::deck::navigation {
 class PageManager;
 }
+namespace darkspark::deck::pages {
+class DeckPage;
+}
+namespace darkspark::models {
+class MetricSample;
+}
 
 namespace darkspark::deck {
 
@@ -39,6 +45,12 @@ public:
     /// Present as a normal resizable window (development framing).
     void showWindowed();
 
+    /// Receive a telemetry sample and route it to the page that presents it.
+    ///
+    /// The window does not expose its pages or cards; routing is internal. A
+    /// sample for a metric this window does not present is ignored safely.
+    void receiveTelemetry(const models::MetricSample& sample);
+
 signals:
     /// Emitted when the user requests to leave Deck Mode (Exit button or
     /// Escape). The owner decides what "leaving" means (close, or return to a
@@ -52,6 +64,10 @@ private:
     void buildPages();
 
     navigation::PageManager* pageManager_;
+    /// Non-owning pointer to the page that presents system telemetry, captured
+    /// while building pages. The pages themselves are owned by the PageManager's
+    /// stack. Never exposed publicly; may be null if that page is absent.
+    pages::DeckPage* systemPage_ = nullptr;
 };
 
 }  // namespace darkspark::deck

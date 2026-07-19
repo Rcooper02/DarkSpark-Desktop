@@ -11,6 +11,9 @@ class QGridLayout;
 namespace darkspark::deck::cards {
 class DashboardCard;
 }
+namespace darkspark::models {
+class MetricSample;
+}
 
 namespace darkspark::deck::pages {
 
@@ -42,6 +45,13 @@ public:
     [[nodiscard]] QString title() const;
     [[nodiscard]] QString subtitle() const;
     [[nodiscard]] int cardCount() const;
+
+    /// Apply a telemetry sample to the card that presents it.
+    ///
+    /// The page owns the mapping from metric to card and from telemetry state
+    /// to card presentation. Cards are never exposed. A sample whose MetricId
+    /// this page does not present is ignored safely.
+    void receiveTelemetry(const models::MetricSample& sample);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

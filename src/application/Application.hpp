@@ -15,6 +15,9 @@ class DesktopWindow;
 namespace darkspark::deck {
 class DeckWindow;
 }
+namespace darkspark::interfaces {
+class ITelemetryProvider;
+}
 
 namespace darkspark::application {
 
@@ -71,9 +74,27 @@ private:
     void startDesktop();
     void startDeck(int requestedScreenIndex);
 
+    /// Create the telemetry provider (owned via Qt parenting) and begin
+    /// sampling. Called once from run() before mode selection, so telemetry is
+    /// available immediately whenever a Deck window appears.
+    void startTelemetry();
+
+    /// Connect the telemetry provider to a freshly constructed DeckWindow.
+    ///
+    /// Both DeckWindow creation paths (direct Deck startup and the launch
+    /// request from the desktop window) route through this helper so the wiring
+    /// is identical. The window is used as the connection context object, so
+    /// the connection is removed automatically if the window is destroyed.
+    void connectTelemetryToDeck(deck::DeckWindow* window);
+
     QApplication& qtApp_;
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
     std::unique_ptr<deck::DeckWindow> deckWindow_;
+    /// Non-owning view of the telemetry provider. The concrete service is a
+    /// QObject child of this Application, so Qt owns its lifetime. Held through
+    /// the interface so the composition root does not depend on the concrete
+    /// service type beyond construction.
+    interfaces::ITelemetryProvider* telemetry_ = nullptr;
 };
 
 }  // namespace darkspark::application

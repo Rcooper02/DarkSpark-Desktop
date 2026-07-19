@@ -3,6 +3,9 @@
 
 #include "deck/DeckWindow.hpp"
 #include "desktop/DesktopWindow.hpp"
+#include "interfaces/ITelemetryProvider.hpp"
+#include "models/MetricSample.hpp"
+#include "services/CpuTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -54,6 +57,11 @@ LaunchOptions Application::parseArguments(const QStringList& arguments) {
 int Application::run(const LaunchOptions& options) {
     themes::LegacyTheme::apply(&qtApp_);
 
+    // Telemetry is created and started once, before mode selection, and runs
+    // for the Application lifetime. A Deck window may be created later (or
+    // never), so sampling is not tied to any window's existence.
+    startTelemetry();
+
     switch (options.mode) {
     case StartupMode::Desktop:
         startDesktop();
@@ -77,6 +85,9 @@ void Application::startDesktop() {
                     deckWindow_ = std::make_unique<deck::DeckWindow>();
                     connect(deckWindow_.get(), &deck::DeckWindow::exitRequested,
                             deckWindow_.get(), &QWidget::close);
+                    // Wire telemetry immediately after construction and before
+                    // the window is shown.
+                    connectTelemetryToDeck(deckWindow_.get());
                 }
                 deckWindow_->showWindowed();
                 deckWindow_->raise();
@@ -109,9 +120,35 @@ void Application::startDeck(int requestedScreenIndex) {
     deckWindow_ = std::make_unique<deck::DeckWindow>();
     connect(deckWindow_.get(), &deck::DeckWindow::exitRequested, deckWindow_.get(),
             &QWidget::close);
+    // Wire telemetry immediately after construction and before showing.
+    connectTelemetryToDeck(deckWindow_.get());
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
+}
+
+void Application::startTelemetry() {
+    if (telemetry_ != nullptr) {
+        return;
+    }
+    // The concrete service is a QObject child of this Application; Qt owns its
+    // lifetime. It is held through the interface so nothing downstream depends
+    // on the concrete type.
+    auto* service = new services::CpuTelemetryService(this);
+    telemetry_ = service;
+    telemetry_->start();
+    qCInfo(lcApp) << "CPU telemetry started";
+}
+
+void Application::connectTelemetryToDeck(deck::DeckWindow* window) {
+    if (telemetry_ == nullptr || window == nullptr) {
+        return;
+    }
+    connect(telemetry_, &interfaces::ITelemetryProvider::readingChanged, window,
+            &deck::DeckWindow::receiveTelemetry);
+    // Deliver the latest known sample immediately so a newly shown window is
+    // not blank until the next poll.
+    window->receiveTelemetry(telemetry_->currentSample());
 }
 
 }  // namespace darkspark::application

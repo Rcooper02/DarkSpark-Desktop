@@ -4,6 +4,7 @@
 #include "deck/cards/DashboardCard.hpp"
 #include "deck/navigation/PageManager.hpp"
 #include "deck/pages/DeckPage.hpp"
+#include "models/MetricSample.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QGuiApplication>
@@ -13,6 +14,7 @@
 #include <QVBoxLayout>
 #include <QWindow>
 
+#include <cstring>
 #include <initializer_list>
 
 namespace darkspark::deck {
@@ -44,6 +46,10 @@ struct PagePlan {
 using S = DashboardCard::Size;
 using A = DashboardCard::Accent;
 using St = DashboardCard::State;
+
+/// Title of the page that presents system telemetry. Must match the entry in
+/// kPagePlans below.
+constexpr const char* kSystemPageTitle = "System";
 
 const std::initializer_list<PagePlan> kPagePlans = {
     {"Command",
@@ -107,6 +113,11 @@ DeckWindow::DeckWindow(QWidget* parent)
 void DeckWindow::buildPages() {
     for (const auto& plan : kPagePlans) {
         auto* page = new DeckPage(QString::fromUtf8(plan.title));
+        // Capture the page that presents system telemetry so samples can be
+        // routed to it without exposing pages or cards.
+        if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
+            systemPage_ = page;
+        }
         for (const auto& cardPlan : plan.cards) {
             auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
             if (cardPlan.subtitle != nullptr && cardPlan.subtitle[0] != '\0') {
@@ -119,6 +130,14 @@ void DeckWindow::buildPages() {
         }
         pageManager_->addPage(page);
     }
+}
+
+void DeckWindow::receiveTelemetry(const models::MetricSample& sample) {
+    if (systemPage_ == nullptr) {
+        // No page presents system telemetry in this window; ignore safely.
+        return;
+    }
+    systemPage_->receiveTelemetry(sample);
 }
 
 void DeckWindow::showDeckFullscreen(QScreen* screen) {

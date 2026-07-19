@@ -443,6 +443,38 @@ void test_timestamp_carry() {
     CHECK(collector.samples[0].timestamp() > 0);
 }
 
+/// Signal-contract test for the wiring T4 depends on: a plain QObject receiver
+/// connected to readingChanged must receive every emitted sample, unmodified
+/// and in order. This exercises the same connection form the composition root
+/// uses, without touching any UI type or production API.
+void test_reading_changed_reaches_external_receiver() {
+    QObject owner;
+    ScriptedSource script;
+    script.push(statLine(100, 0, 0, 1000, 0, 0, 0, 0));  // baseline -> Unavailable
+    script.push(statLine(150, 0, 0, 1150, 0, 0, 0, 0));  // -> Fresh 25%
+    script.push(std::nullopt);                           // -> Stale 25%
+    auto* service = makeService(script, owner);
+
+    QObject receiver;
+    std::vector<MetricSample> received;
+    QObject::connect(service, &CpuTelemetryService::readingChanged, &receiver,
+                     [&received](const MetricSample& s) { received.push_back(s); });
+
+    drivePoll(service);
+    drivePoll(service);
+    drivePoll(service);
+
+    CHECK(received.size() == 3);
+    if (received.size() < 3) return;
+    CHECK(received[0].state() == MetricState::Unavailable);
+    CHECK(received[1].state() == MetricState::Fresh);
+    CHECK(received[2].state() == MetricState::Stale);
+    if (received[1].value()) CHECK(*received[1].value() == 25.0);
+    if (received[2].value()) CHECK(*received[2].value() == 25.0);
+    // The receiver sees exactly what the provider reports.
+    CHECK(received.back() == service->currentSample());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -469,6 +501,7 @@ int main(int argc, char** argv) {
     test_start_stop_idempotence_and_queryability();
     test_start_after_stop_clears_baseline();
     test_timestamp_carry();
+    test_reading_changed_reaches_external_receiver();
 
     if (g_failures == 0) {
         std::puts("All CpuTelemetryService tests passed.");
