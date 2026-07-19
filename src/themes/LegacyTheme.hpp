@@ -83,6 +83,12 @@ public:
     static int motionFast();       ///< 120
     static int motionStandard();   ///< 220
 
+    /// Monospaced family for changing numeric readouts, so digits do not shift
+    /// as values update (docs/STYLE_GUIDE.md "Numbers and Units", the
+    /// design-system `type.mono` role). Resolved from the platform's fixed-width
+    /// font; no external font dependency is introduced.
+    static QString monoFontFamily();
+
     // --- Glow ---------------------------------------------------------------
     /// Controlled focus/selection glow blur radius (docs/VISUAL_LANGUAGE.md:
     /// glow is an accent for focus/active navigation, not a background effect).

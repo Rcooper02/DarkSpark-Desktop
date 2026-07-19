@@ -35,6 +35,8 @@ StatusIndicator::State toIndicatorState(DashboardCard::State state) {
         return StatusIndicator::State::Unavailable;
     case DashboardCard::State::Warning:
         return StatusIndicator::State::Warning;
+    case DashboardCard::State::Critical:
+        return StatusIndicator::State::Critical;
     case DashboardCard::State::Error:
         return StatusIndicator::State::Error;
     case DashboardCard::State::Disabled:
@@ -55,6 +57,8 @@ const char* stateStatusText(DashboardCard::State state) {
         return "Unavailable";
     case DashboardCard::State::Warning:
         return "Warning";
+    case DashboardCard::State::Critical:
+        return "Critical";
     case DashboardCard::State::Error:
         return "Error";
     case DashboardCard::State::Disabled:
@@ -75,6 +79,8 @@ const char* stateName(DashboardCard::State state) {
         return "unavailable";
     case DashboardCard::State::Warning:
         return "warning";
+    case DashboardCard::State::Critical:
+        return "critical";
     case DashboardCard::State::Error:
         return "error";
     case DashboardCard::State::Disabled:
@@ -100,6 +106,7 @@ const char* accentName(DashboardCard::Accent accent) {
 DashboardCard::DashboardCard(QString title, QWidget* parent)
     : QFrame(parent), titleLabel_(new QLabel(title, this)),
       subtitleLabel_(new QLabel(QString(), this)),
+      valueLabel_(new QLabel(QString(), this)),
       placeholderLabel_(new QLabel(QString(), this)),
       statusLabel_(new QLabel(QString(), this)),
       divider_(new QFrame(this)), indicator_(new StatusIndicator(this)),
@@ -119,6 +126,7 @@ DashboardCard::DashboardCard(QString title, QWidget* parent)
 
     titleLabel_->setProperty("legacyRole", "cardTitle");
     subtitleLabel_->setProperty("legacyRole", "cardSubtitle");
+    valueLabel_->setProperty("legacyRole", "primaryValue");
     placeholderLabel_->setProperty("legacyRole", "placeholder");
     statusLabel_->setProperty("legacyRole", "statusText");
 
@@ -127,6 +135,9 @@ DashboardCard::DashboardCard(QString title, QWidget* parent)
     placeholderLabel_->setWordWrap(true);
     statusLabel_->setWordWrap(true);
     subtitleLabel_->setVisible(false);
+    // The value is hidden until a card is given one, so placeholder-only cards
+    // are visually unchanged.
+    valueLabel_->setVisible(false);
 
     divider_->setObjectName(LegacyTheme::cardDividerObjectName());
     divider_->setFrameShape(QFrame::NoFrame);
@@ -146,6 +157,7 @@ DashboardCard::DashboardCard(QString title, QWidget* parent)
     auto* contentCol = new QVBoxLayout(content);
     contentCol->setContentsMargins(0, 0, 0, 0);
     contentCol->setSpacing(LegacyTheme::spaceXs());
+    contentCol->addWidget(valueLabel_);
     contentCol->addWidget(placeholderLabel_);
     contentCol->addStretch(1);
 
@@ -186,9 +198,19 @@ void DashboardCard::setPlaceholderText(const QString& text) {
     placeholderLabel_->setText(text.isEmpty() ? QStringLiteral("No data") : text);
 }
 
+void DashboardCard::setValueText(const QString& text) {
+    valueLabel_->setText(text);
+    // A card shows either a live value or a placeholder, never both: showing
+    // "54.5 %" beside "No data" would be contradictory.
+    const bool hasValue = !text.isEmpty();
+    valueLabel_->setVisible(hasValue);
+    placeholderLabel_->setVisible(!hasValue);
+}
+
 QString DashboardCard::title() const { return titleLabel_->text(); }
 QString DashboardCard::subtitle() const { return subtitleLabel_->text(); }
 QString DashboardCard::statusText() const { return statusLabel_->text(); }
+QString DashboardCard::valueText() const { return valueLabel_->text(); }
 
 // --- State / accent / size --------------------------------------------------
 void DashboardCard::setState(State state) {
@@ -225,7 +247,9 @@ void DashboardCard::applyStateContent() {
     statusLabel_->setProperty("legacyState", name);
     titleLabel_->setProperty("legacyState", name);
     subtitleLabel_->setProperty("legacyState", name);
-    const std::array<QLabel*, 3> labels{statusLabel_, titleLabel_, subtitleLabel_};
+    valueLabel_->setProperty("legacyState", name);
+    const std::array<QLabel*, 4> labels{statusLabel_, titleLabel_, subtitleLabel_,
+                                        valueLabel_};
     for (QLabel* label : labels) {
         label->style()->unpolish(label);
         label->style()->polish(label);
@@ -243,6 +267,7 @@ void DashboardCard::refreshVisualState() {
     QString visual;
     switch (state_) {
     case State::Error:
+    case State::Critical:
     case State::Warning:
     case State::Unavailable:
     case State::Disabled:

@@ -19,8 +19,12 @@ namespace darkspark::deck::cards {
 /// Color reinforces the shape but is never the sole signal; the DashboardCard
 /// always shows accompanying status text. Distinct SHAPES (not just colors)
 /// separate the states: filled dot, dashed ring (loading), hollow ring (empty),
-/// horizontal bar (unavailable), triangle (warning), cross (error), muted
-/// hollow ring (disabled).
+/// horizontal bar (unavailable), hollow triangle (warning), filled triangle
+/// (critical), cross (error), muted hollow ring (disabled).
+///
+/// Critical and Error deliberately share a color but never a shape: a critical
+/// operating condition is not a failure, so the filled triangle reads as an
+/// escalation of the warning triangle rather than as the error cross.
 ///
 /// The Loading state uses a restrained rotating arc. The animation runs only
 /// while the widget is visible and enabled and stops otherwise, so hidden or
@@ -40,6 +44,7 @@ public:
         Empty,
         Unavailable,
         Warning,
+        Critical,
         Error,
         Disabled
     };

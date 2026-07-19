@@ -2,6 +2,7 @@
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QPalette>
 
 namespace darkspark::themes {
@@ -58,6 +59,12 @@ int LegacyTheme::fontAnnotation() { return 11; }
 // --- Motion -----------------------------------------------------------------
 int LegacyTheme::motionFast() { return 120; }
 int LegacyTheme::motionStandard() { return 220; }
+
+QString LegacyTheme::monoFontFamily() {
+    // Resolved from the platform's fixed-width font rather than naming a
+    // specific typeface, so no external font dependency is introduced.
+    return QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+}
 
 // --- Glow -------------------------------------------------------------------
 int LegacyTheme::glowRadius() { return 16; }
@@ -167,6 +174,17 @@ QString LegacyTheme::styleSheet() {
                  .arg(borderThin())
                  .arg(warn, err);
 
+    // Critical: a severe operating condition, not a failure. It shares the
+    // error border color but is separated from Error by the card's filled
+    // triangle indicator and its "Critical" status text. Kept in its own block
+    // to avoid multi-digit style-arg placeholders.
+    sheet += QStringLiteral(
+                 "QFrame#%1[legacyState=\"critical\"]"
+                 " { border: %2px solid %3; }")
+                 .arg(cardObjectName())
+                 .arg(borderThin())
+                 .arg(err);
+
     // Optional divider between header and content.
     sheet += QStringLiteral(
                  "QFrame#%1 { background-color: %2; border: none;"
@@ -214,16 +232,44 @@ QString LegacyTheme::styleSheet() {
                  .arg(fontSupporting())
                  .arg(fontStatus());
 
+    // Primary value: the prominent live numeric readout on a data card. Uses
+    // the existing fontPrimaryValue token and a monospaced family so changing
+    // digits do not shift layout (docs/STYLE_GUIDE.md "Numbers and Units").
+    // Kept in its own block to avoid multi-digit style-arg placeholders.
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"primaryValue\"]"
+                 " { color: %1; font-size: %2px; font-weight: 600;"
+                 " font-family: \"%3\"; }")
+                 .arg(textPri)
+                 .arg(fontPrimaryValue())
+                 .arg(monoFontFamily());
+
     // Status text escalates in color only for warning/error (state over accent;
     // color reinforces, never sole signal).
     sheet += QStringLiteral(
                  "QLabel[legacyRole=\"statusText\"][legacyState=\"warning\"]"
                  " { color: %1; font-weight: 600; }"
+                 "QLabel[legacyRole=\"statusText\"][legacyState=\"critical\"]"
+                 " { color: %2; font-weight: 600; }"
                  "QLabel[legacyRole=\"statusText\"][legacyState=\"error\"]"
                  " { color: %2; font-weight: 600; }"
                  "QLabel[legacyRole=\"cardTitle\"][legacyState=\"disabled\"]"
                  " { color: %3; }"
                  "QLabel[legacyRole=\"cardSubtitle\"][legacyState=\"disabled\"]"
+                 " { color: %3; }")
+                 .arg(warn, err, textDis);
+
+    // The live value carries the same state escalation so a degraded or
+    // critical reading is legible at a glance; shape and text still carry the
+    // meaning (docs/STYLE_GUIDE.md: color is never the sole signal).
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"primaryValue\"][legacyState=\"warning\"]"
+                 " { color: %1; }"
+                 "QLabel[legacyRole=\"primaryValue\"][legacyState=\"critical\"]"
+                 " { color: %2; }"
+                 "QLabel[legacyRole=\"primaryValue\"][legacyState=\"error\"]"
+                 " { color: %2; }"
+                 "QLabel[legacyRole=\"primaryValue\"][legacyState=\"disabled\"]"
                  " { color: %3; }")
                  .arg(warn, err, textDis);
 

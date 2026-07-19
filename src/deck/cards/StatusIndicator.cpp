@@ -60,6 +60,10 @@ QColor StatusIndicator::colorForState() const {
         return LegacyTheme::textDisabled();
     case State::Warning:
         return LegacyTheme::statusWarning();
+    case State::Critical:
+        // Shares the semantic error color; the filled-triangle shape and the
+        // card's "Critical" status text keep it distinct from Error.
+        return LegacyTheme::statusError();
     case State::Error:
         return LegacyTheme::statusError();
     case State::Disabled:
@@ -133,9 +137,22 @@ void StatusIndicator::paintEvent(QPaintEvent* /*event*/) {
         break;
     }
     case State::Warning: {
-        // Upward triangle.
+        // Upward triangle, hollow.
         painter.setPen(pen);
         painter.setBrush(Qt::NoBrush);
+        QPolygonF tri;
+        tri << QPointF(box.center().x(), box.top())
+            << QPointF(box.left(), box.bottom())
+            << QPointF(box.right(), box.bottom());
+        painter.drawPolygon(tri);
+        break;
+    }
+    case State::Critical: {
+        // Upward triangle, FILLED: an escalation of the warning triangle and
+        // unmistakably different from the error cross, so shape alone separates
+        // the three severities even though Critical and Error share a color.
+        painter.setPen(pen);
+        painter.setBrush(color);
         QPolygonF tri;
         tri << QPointF(box.center().x(), box.top())
             << QPointF(box.left(), box.bottom())

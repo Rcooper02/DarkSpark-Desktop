@@ -39,9 +39,28 @@ constexpr int kMaxColumns = 6;
     return nullptr;
 }
 
-/// Percentage rendered with a single decimal place, e.g. "37.2%".
+/// Utilization thresholds for the telemetry this page presents, kept local:
+/// they are a semantic judgement about the metric, not a presentation fact, and
+/// they differ per metric. DashboardCard stays presentation-only.
+constexpr double kWarningThresholdPercent = 85.0;
+constexpr double kCriticalThresholdPercent = 95.0;
+
+/// Complete presentation string including the unit, so DashboardCard performs
+/// no formatting and stays metric-agnostic (docs/STYLE_GUIDE.md pairs a number
+/// with its unit and fixes the decimal count so values do not jitter).
 [[nodiscard]] QString formatPercent(double value) {
-    return QString::number(value, 'f', 1) + QStringLiteral("%");
+    return QString::number(value, 'f', 1) + QStringLiteral(" %");
+}
+
+/// Card presentation for a fresh reading, escalating by threshold.
+[[nodiscard]] cards::DashboardCard::State stateForUtilization(double percent) {
+    if (percent >= kCriticalThresholdPercent) {
+        return cards::DashboardCard::State::Critical;
+    }
+    if (percent >= kWarningThresholdPercent) {
+        return cards::DashboardCard::State::Warning;
+    }
+    return cards::DashboardCard::State::Normal;
 }
 }  // namespace
 
@@ -125,25 +144,29 @@ void DeckPage::receiveTelemetry(const models::MetricSample& sample) {
     // no new card state is introduced.
     switch (sample.state()) {
     case models::MetricState::Fresh:
-        target->setState(DashboardCard::State::Normal);
+        if (sample.value().has_value()) {
+            target->setState(stateForUtilization(*sample.value()));
+            target->setValueText(formatPercent(*sample.value()));
+        } else {
+            target->setState(DashboardCard::State::Normal);
+        }
         // Clearing custom status text restores the state's default footer text.
         target->setStatusText(QString());
-        if (sample.value().has_value()) {
-            target->setPlaceholderText(formatPercent(*sample.value()));
-        }
         break;
     case models::MetricState::Stale:
         target->setState(DashboardCard::State::Warning);
         // Retain and show the last valid percentage, explicitly marked stale.
         if (sample.value().has_value()) {
-            target->setPlaceholderText(formatPercent(*sample.value()));
+            target->setValueText(formatPercent(*sample.value()));
         }
         target->setStatusText(QStringLiteral("Stale"));
         break;
     case models::MetricState::Unavailable:
         target->setState(DashboardCard::State::Unavailable);
         target->setStatusText(QString());
-        // Never show a misleading numeric value when no value exists.
+        // Never show a misleading numeric value when no value exists: clearing
+        // the value restores the quiet placeholder.
+        target->setValueText(QString());
         target->setPlaceholderText(QString());
         break;
     }

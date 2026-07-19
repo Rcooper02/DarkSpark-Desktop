@@ -48,6 +48,11 @@ public:
         Empty,
         Unavailable,
         Warning,
+        /// A severe operating condition (for example a metric far past its
+        /// threshold). Deliberately distinct from Error: a critical condition
+        /// is not a failure. Separated visually by a filled-triangle indicator
+        /// and its own status text, not by color alone.
+        Critical,
         Error,
         Disabled
     };
@@ -67,10 +72,18 @@ public:
     /// Optional placeholder line shown in the content region. Empty shows a
     /// default, quiet placeholder so the region still reads as intentional.
     void setPlaceholderText(const QString& text);
+    /// Prominent live numeric readout, supplied as a complete presentation
+    /// string including any unit (for example "54.5 %"). The card performs no
+    /// formatting and knows nothing about the metric, so it stays reusable for
+    /// any data card. An empty string hides the value and restores the
+    /// placeholder; a non-empty string shows the value and hides the
+    /// placeholder.
+    void setValueText(const QString& text);
 
     [[nodiscard]] QString title() const;
     [[nodiscard]] QString subtitle() const;
     [[nodiscard]] QString statusText() const;
+    [[nodiscard]] QString valueText() const;
 
     // --- State / accent / size ---------------------------------------------
     void setState(State state);
@@ -109,6 +122,7 @@ private:
 
     QLabel* titleLabel_;
     QLabel* subtitleLabel_;
+    QLabel* valueLabel_;
     QLabel* placeholderLabel_;
     QLabel* statusLabel_;
     QFrame* divider_;
