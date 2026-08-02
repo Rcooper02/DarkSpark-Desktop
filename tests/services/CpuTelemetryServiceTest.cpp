@@ -9,6 +9,8 @@
 // plus scripted reads, so tests do not depend on wall-clock timing.
 
 #include <cstdio>
+#include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,6 +24,7 @@
 
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
+#include "services/CpuThermalService.hpp"
 #include "services/HwmonDiscovery.hpp"
 #include "services/MemoryTelemetryService.hpp"
 
@@ -1054,6 +1057,249 @@ void test_discovery_nonexistent_root() {
     CHECK(discovery.discover().isEmpty());
 }
 
+// ---------------------------------------------------------------------------
+// CpuThermalService
+//
+// Driven through detail::makeWithSources with scripted discovery and reads, so
+// no test depends on real hwmon, the real clock, or live temperature. Kept in
+// this translation unit (single darkspark-services-test executable).
+// ---------------------------------------------------------------------------
+
+using darkspark::services::CpuThermalService;
+using darkspark::services::DiscoveredSensor;
+using darkspark::services::detail::ThermalSources;
+
+/// Build a DiscoveredSensor with the given key and input path.
+DiscoveredSensor makeSensor(const char* key, const QString& inputPath) {
+    DiscoveredSensor s;
+    s.definition.identity =
+        darkspark::models::SensorKey{MetricId::CpuTemperature, key};
+    s.definition.displayName = std::string("CPU ") + key;
+    s.definition.unit = darkspark::models::MetricUnit::Celsius;
+    s.inputPath = inputPath;
+    return s;
+}
+
+/// Scripted thermal environment: fixed sensor list plus a mutable path->value
+/// map so tests can change or remove readings between polls.
+class ThermalEnv {
+public:
+    void addSensor(const char* key, const QString& path, std::optional<double> v) {
+        sensors_.append(makeSensor(key, path));
+        values_[path] = v;
+    }
+    void setValue(const QString& path, std::optional<double> v) {
+        values_[path] = v;
+    }
+    [[nodiscard]] QList<DiscoveredSensor> discover() const { return sensors_; }
+    [[nodiscard]] std::optional<double> read(const QString& path) const {
+        const auto it = values_.find(path);
+        if (it == values_.end()) return std::nullopt;
+        return it->second;
+    }
+    [[nodiscard]] MonotonicTimestamp now() { return ++tick_; }
+
+private:
+    QList<DiscoveredSensor> sensors_;
+    std::map<QString, std::optional<double>> values_;
+    MonotonicTimestamp tick_ = 0;
+};
+
+CpuThermalService* makeThermal(ThermalEnv& env, QObject& owner) {
+    ThermalSources sources;
+    sources.discover = [&env]() { return env.discover(); };
+    sources.readInput = [&env](const QString& p) { return env.read(p); };
+    sources.now = [&env]() { return env.now(); };
+    return darkspark::services::detail::makeWithSources(std::move(sources),
+                                                        &owner);
+}
+
+class ThermalCollector : public QObject {
+public:
+    explicit ThermalCollector(CpuThermalService* service) {
+        connect(service, &CpuThermalService::readingChanged, this,
+                [this](const MetricSample& s) { samples.push_back(s); });
+    }
+    std::vector<MetricSample> samples;
+    [[nodiscard]] const MetricSample* last(const char* key) const {
+        for (auto it = samples.rbegin(); it != samples.rend(); ++it) {
+            if (it->sensorKey() == key) return &*it;
+        }
+        return nullptr;
+    }
+};
+
+void driveThermalPoll(CpuThermalService* service) {
+    darkspark::services::detail::pollOnceForTest(*service);
+}
+
+void test_thermal_normal_reads_multiple_sensors() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 58.0);
+    env.addSensor("ccd1", QStringLiteral("/p/ccd1"), 55.0);
+    env.addSensor("ccd2", QStringLiteral("/p/ccd2"), 56.0);
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);
+
+    // One sample per sensor, all Fresh with correct values and identity.
+    const MetricSample* pkg = collector.last("package");
+    const MetricSample* c1 = collector.last("ccd1");
+    const MetricSample* c2 = collector.last("ccd2");
+    CHECK(pkg != nullptr);
+    CHECK(c1 != nullptr);
+    CHECK(c2 != nullptr);
+    if (pkg) {
+        CHECK(pkg->id() == MetricId::CpuTemperature);
+        CHECK(pkg->unit() == darkspark::models::MetricUnit::Celsius);
+        CHECK(pkg->state() == MetricState::Fresh);
+        CHECK(pkg->value() == std::optional<double>(58.0));
+    }
+    if (c1 && c1->value()) CHECK(*c1->value() == 55.0);
+    if (c2 && c2->value()) CHECK(*c2->value() == 56.0);
+}
+
+void test_thermal_no_sensors_discovered() {
+    QObject owner;
+    ThermalEnv env;  // no sensors
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);
+
+    CHECK(collector.samples.empty());
+    CHECK(service->currentSamples().isEmpty());
+}
+
+void test_thermal_missing_value_is_unavailable() {
+    QObject owner;
+    ThermalEnv env;
+    // Sensor discovered but its path yields no value.
+    env.addSensor("package", QStringLiteral("/p/pkg"), std::nullopt);
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);
+
+    const MetricSample* pkg = collector.last("package");
+    CHECK(pkg != nullptr);
+    if (pkg) {
+        CHECK(pkg->state() == MetricState::Unavailable);
+        CHECK(!pkg->value().has_value());
+    }
+}
+
+void test_thermal_stale_after_valid_then_failure() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 60.0);
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);                              // Fresh 60
+    env.setValue(QStringLiteral("/p/pkg"), std::nullopt);   // now unreadable
+    driveThermalPoll(service);                              // Stale 60
+
+    const MetricSample* pkg = collector.last("package");
+    CHECK(pkg != nullptr);
+    if (pkg) {
+        CHECK(pkg->state() == MetricState::Stale);
+        CHECK(pkg->value() == std::optional<double>(60.0));
+    }
+}
+
+void test_thermal_sensor_disappears() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 58.0);
+    env.addSensor("ccd1", QStringLiteral("/p/ccd1"), 55.0);
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);                                // both Fresh
+    // ccd1's file disappears (read returns nullopt); package keeps reading.
+    env.setValue(QStringLiteral("/p/ccd1"), std::nullopt);
+    driveThermalPoll(service);
+
+    const MetricSample* c1 = collector.last("ccd1");
+    const MetricSample* pkg = collector.last("package");
+    CHECK(c1 != nullptr);
+    CHECK(pkg != nullptr);
+    if (c1) CHECK(c1->state() == MetricState::Stale);  // had a prior value
+    if (pkg) CHECK(pkg->state() == MetricState::Fresh);
+}
+
+void test_thermal_malformed_value_is_unavailable() {
+    QObject owner;
+    ThermalEnv env;
+    // A non-finite reading models a malformed conversion; tryFresh rejects it.
+    env.addSensor("package", QStringLiteral("/p/pkg"),
+                  std::numeric_limits<double>::quiet_NaN());
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);
+
+    const MetricSample* pkg = collector.last("package");
+    CHECK(pkg != nullptr);
+    if (pkg) {
+        CHECK(pkg->state() == MetricState::Unavailable);
+        CHECK(!pkg->value().has_value());
+    }
+}
+
+void test_thermal_recovery_after_failure() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 60.0);
+    auto* service = makeThermal(env, owner);
+    ThermalCollector collector(service);
+
+    driveThermalPoll(service);                             // Fresh 60
+    env.setValue(QStringLiteral("/p/pkg"), std::nullopt);  // Stale
+    driveThermalPoll(service);
+    env.setValue(QStringLiteral("/p/pkg"), 62.0);          // recovers
+    driveThermalPoll(service);
+
+    const MetricSample* pkg = collector.last("package");
+    CHECK(pkg != nullptr);
+    if (pkg) {
+        CHECK(pkg->state() == MetricState::Fresh);
+        CHECK(pkg->value() == std::optional<double>(62.0));
+    }
+}
+
+void test_thermal_current_samples_track_all_sensors() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 58.0);
+    env.addSensor("ccd1", QStringLiteral("/p/ccd1"), 55.0);
+    auto* service = makeThermal(env, owner);
+
+    // Before any poll, discovery has not run: no samples yet.
+    CHECK(service->currentSamples().isEmpty());
+
+    driveThermalPoll(service);
+    // After a poll, one current sample per discovered sensor.
+    CHECK(service->currentSamples().size() == 2);
+}
+
+void test_thermal_idempotent_start_stop() {
+    QObject owner;
+    ThermalEnv env;
+    env.addSensor("package", QStringLiteral("/p/pkg"), 58.0);
+    auto* service = makeThermal(env, owner);
+
+    service->start();
+    service->start();  // no-op
+    service->stop();
+    service->stop();   // no-op
+    // Discovery ran at start; one sensor tracked.
+    CHECK(service->currentSamples().size() == 1);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1111,6 +1357,16 @@ int main(int argc, char** argv) {
     test_discovery_sensor_disappearance();
     test_discovery_empty_root();
     test_discovery_nonexistent_root();
+
+    test_thermal_normal_reads_multiple_sensors();
+    test_thermal_no_sensors_discovered();
+    test_thermal_missing_value_is_unavailable();
+    test_thermal_stale_after_valid_then_failure();
+    test_thermal_sensor_disappears();
+    test_thermal_malformed_value_is_unavailable();
+    test_thermal_recovery_after_failure();
+    test_thermal_current_samples_track_all_sensors();
+    test_thermal_idempotent_start_stop();
 
     if (g_failures == 0) {
         std::puts("All telemetry service tests passed.");
