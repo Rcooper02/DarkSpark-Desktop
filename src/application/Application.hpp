@@ -81,6 +81,12 @@ private:
     /// available immediately whenever a Deck window appears.
     void startTelemetry();
 
+    /// Emit readable diagnostic logging for any currently-primed CPU
+    /// temperature samples, keyed by logical sensor identity (package, ccd1,
+    /// ...). Temperature has no dashboard binding in T7A, so this is the
+    /// integration's visible validation surface.
+    void logTemperatureSamples();
+
     /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
     /// Both DeckWindow creation paths (direct Deck startup and the launch

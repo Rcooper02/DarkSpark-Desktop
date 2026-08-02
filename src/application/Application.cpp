@@ -6,6 +6,7 @@
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
+#include "services/CpuThermalService.hpp"
 #include "services/MemoryTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
@@ -14,6 +15,7 @@
 #include <QList>
 #include <QLoggingCategory>
 #include <QScreen>
+#include <QString>
 #include <QStringList>
 
 namespace darkspark::application {
@@ -137,11 +139,45 @@ void Application::startTelemetry() {
     // downstream depends on a concrete type.
     providers_.append(new services::CpuTelemetryService(this));
     providers_.append(new services::MemoryTelemetryService(this));
+    providers_.append(new services::CpuThermalService(this));
 
     for (interfaces::ITelemetryProvider* provider : providers_) {
         provider->start();
     }
     qCInfo(lcApp) << "Telemetry started; providers:" << providers_.size();
+
+    // Readable diagnostic logging for CPU temperature: after start(), the
+    // thermal provider has discovered its sensors, so its primed samples name
+    // the logical identities (package, ccd1, ccd2, ...). Temperature has no
+    // dashboard binding in T7A, so this log is the integration's visible proof.
+    logTemperatureSamples();
+}
+
+void Application::logTemperatureSamples() {
+    for (interfaces::ITelemetryProvider* provider : providers_) {
+        if (provider == nullptr) {
+            continue;
+        }
+        const QList<models::MetricSample> samples = provider->currentSamples();
+        for (const models::MetricSample& sample : samples) {
+            if (sample.id() != models::MetricId::CpuTemperature) {
+                continue;
+            }
+            const QString key = QString::fromStdString(sample.sensorKey());
+            if (sample.state() == models::MetricState::Fresh
+                && sample.value().has_value()) {
+                qCInfo(lcApp).noquote()
+                    << QStringLiteral("[CPU Thermal] %1 = %2\u00B0C (primed)")
+                           .arg(key)
+                           .arg(QString::number(*sample.value(), 'f', 0));
+            } else {
+                qCInfo(lcApp).noquote()
+                    << QStringLiteral(
+                           "[CPU Thermal] %1 discovered, awaiting first reading")
+                           .arg(key);
+            }
+        }
+    }
 }
 
 void Application::connectTelemetryToDeck(deck::DeckWindow* window) {
