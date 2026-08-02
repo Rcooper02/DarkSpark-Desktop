@@ -136,8 +136,8 @@ void MemoryTelemetryService::stop() {
     timer_->stop();
 }
 
-models::MetricSample MemoryTelemetryService::currentSample() const {
-    return current_;
+QList<models::MetricSample> MemoryTelemetryService::currentSamples() const {
+    return {current_};
 }
 
 void MemoryTelemetryService::emitSample(const MetricSample& sample) {

@@ -8,6 +8,7 @@
 #include <string>
 
 #include <QElapsedTimer>
+#include <QList>
 #include <QObject>
 
 #include "interfaces/ITelemetryProvider.hpp"
@@ -88,9 +89,10 @@ public:
     /// Stop sampling. Idempotent. The last emitted sample remains queryable.
     void stop() override;
 
-    /// The most recent emitted sample. Performs no I/O and never fabricates a
-    /// value; before the first poll this is an Unavailable sample.
-    [[nodiscard]] models::MetricSample currentSample() const override;
+    /// The most recent emitted sample, as a one-element list (this provider
+    /// exposes a single sensor). Performs no I/O and never fabricates a value;
+    /// before the first poll this is an Unavailable sample.
+    [[nodiscard]] QList<models::MetricSample> currentSamples() const override;
 
 private:
     friend CpuTelemetryService* detail::makeWithSources(

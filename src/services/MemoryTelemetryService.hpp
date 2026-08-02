@@ -8,6 +8,7 @@
 #include <string>
 
 #include <QElapsedTimer>
+#include <QList>
 #include <QObject>
 
 #include "interfaces/ITelemetryProvider.hpp"
@@ -93,7 +94,7 @@ public:
 
     /// The most recent emitted sample. Performs no I/O and never fabricates a
     /// value; before the first poll this is an Unavailable sample.
-    [[nodiscard]] models::MetricSample currentSample() const override;
+    [[nodiscard]] QList<models::MetricSample> currentSamples() const override;
 
 private:
     friend MemoryTelemetryService* detail::makeWithSources(

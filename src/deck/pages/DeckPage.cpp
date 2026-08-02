@@ -37,6 +37,20 @@ constexpr int kMaxColumns = 6;
         return "CPU";
     case models::MetricId::MemoryUtilization:
         return "Memory";
+    case models::MetricId::CpuTemperature:
+        // Intentional: CpuTemperature has NO dashboard mapping in T7A.1. This
+        // batch introduces model and telemetry support only. This is not
+        // unfinished UI work and must not be "completed" by adding a temporary
+        // CPU temperature card. Dashboard presentation for temperature will
+        // arrive with the future subsystem-widget architecture, at which point
+        // this case gains its real mapping. Returning nullptr routes any
+        // temperature sample to the safe "no card for this metric" path.
+        //
+        // The case is explicit (rather than folded into a default) on purpose:
+        // the project relies on -Wswitch to force a deliberate decision here
+        // whenever a new MetricId is added. A default branch would silently
+        // absorb future sensors and defeat that guarantee.
+        return nullptr;
     }
     return nullptr;
 }
@@ -58,6 +72,19 @@ struct Thresholds {
         return {85.0, 95.0};
     case models::MetricId::MemoryUtilization:
         return {85.0, 95.0};
+    case models::MetricId::CpuTemperature:
+        // Intentional: no temperature thresholds in T7A.1. This batch is model
+        // and telemetry only; it deliberately computes no health for
+        // temperature. Health (Normal / Medium / High / Critical) is a separate
+        // axis owned exclusively by the future Health Engine, never by this
+        // page. The unreachable-high sentinel guarantees no escalation is ever
+        // produced here even if a temperature reading were routed to a card
+        // (it is not, in T7A.1 -- see cardTitleForMetric above).
+        //
+        // Explicit case, not a default branch, so -Wswitch forces a deliberate
+        // decision when the next MetricId is added rather than silently
+        // inheriting these values.
+        return {1.0e9, 1.0e9};
     }
     return {85.0, 95.0};
 }
@@ -72,6 +99,9 @@ struct Thresholds {
     switch (unit) {
     case models::MetricUnit::Percent:
         return QString::number(value, 'f', 1) + QStringLiteral(" %");
+    case models::MetricUnit::Celsius:
+        // Degree symbol, no space, per the frozen formatting rule: e.g. 64.0°C.
+        return QString::number(value, 'f', 1) + QStringLiteral("\u00B0C");
     }
     return QString::number(value, 'f', 1);
 }

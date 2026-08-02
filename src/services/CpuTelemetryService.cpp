@@ -156,8 +156,8 @@ void CpuTelemetryService::stop() {
     timer_->stop();
 }
 
-models::MetricSample CpuTelemetryService::currentSample() const {
-    return current_;
+QList<models::MetricSample> CpuTelemetryService::currentSamples() const {
+    return {current_};
 }
 
 void CpuTelemetryService::emitSample(const MetricSample& sample) {

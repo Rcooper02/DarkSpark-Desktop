@@ -60,6 +60,7 @@ qt_add_executable(darkspark-desktop
     src/application/Application.hpp
     src/models/MetricSample.cpp
     src/models/MetricSample.hpp
+    src/models/SensorDefinition.hpp
     src/interfaces/ITelemetryProvider.hpp
     src/services/CpuTelemetryService.cpp
     src/services/CpuTelemetryService.hpp

@@ -2,6 +2,7 @@
 #ifndef DARKSPARK_INTERFACES_ITELEMETRYPROVIDER_HPP
 #define DARKSPARK_INTERFACES_ITELEMETRYPROVIDER_HPP
 
+#include <QList>
 #include <QObject>
 
 #include "models/MetricSample.hpp"
@@ -10,8 +11,11 @@ namespace darkspark::interfaces {
 
 /// Abstract contract for a source of telemetry samples.
 ///
-/// One provider represents one telemetry source: it produces samples for a
-/// single metric, so `currentSample()` takes no arguments.
+/// A provider represents one telemetry SOURCE, which may expose more than one
+/// sensor within a category: for example a CPU thermal provider can emit a
+/// package temperature plus one sample per CCD. `currentSamples()` therefore
+/// returns a collection, and single-sensor providers simply return a
+/// one-element list.
 ///
 /// QObject-based so implementations can emit Qt signals, which is idiomatic in
 /// this Qt application. Only model values cross this boundary: no widget types,
@@ -53,16 +57,18 @@ public:
     ///
     /// Idempotent: calling stop() while already stopped is a no-op. Stopping
     /// ends sample production but does not destroy the provider: the object
-    /// remains valid and currentSample() continues to answer.
+    /// remains valid and currentSamples() continues to answer.
     virtual void stop() = 0;
 
-    /// The most recent sample produced by this provider.
+    /// The most recent sample for each sensor this provider exposes.
     ///
     /// Never fabricates data. Before the first start(), and whenever no usable
-    /// value exists, the returned sample carries MetricState::Unavailable with
-    /// no numeric value. After stop(), the last sample produced remains
-    /// queryable.
-    [[nodiscard]] virtual models::MetricSample currentSample() const = 0;
+    /// value exists for a sensor, that sensor's sample carries
+    /// MetricState::Unavailable with no numeric value. After stop(), the last
+    /// samples produced remain queryable. A single-sensor provider returns a
+    /// one-element list; a provider that has discovered no sensors at all may
+    /// return an empty list.
+    [[nodiscard]] virtual QList<models::MetricSample> currentSamples() const = 0;
 
 signals:
     /// Emitted whenever a new sample is produced, including transitions into

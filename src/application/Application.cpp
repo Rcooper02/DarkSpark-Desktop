@@ -154,9 +154,13 @@ void Application::connectTelemetryToDeck(deck::DeckWindow* window) {
         }
         connect(provider, &interfaces::ITelemetryProvider::readingChanged,
                 window, &deck::DeckWindow::receiveTelemetry);
-        // Deliver the latest known sample immediately so a newly shown window
-        // is not blank until the next poll.
-        window->receiveTelemetry(provider->currentSample());
+        // Deliver the latest known sample for each sensor immediately so a newly
+        // shown window is not blank until the next poll. A provider may expose
+        // several sensors, so every current sample is primed.
+        const QList<models::MetricSample> primed = provider->currentSamples();
+        for (const models::MetricSample& sample : primed) {
+            window->receiveTelemetry(sample);
+        }
     }
 }
 

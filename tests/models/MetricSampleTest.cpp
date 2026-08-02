@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "models/MetricSample.hpp"
+#include "models/SensorDefinition.hpp"
 #include <cstdio>
 #include <limits>
 #include <optional>
@@ -91,6 +92,91 @@ void test_timestamp_carry() {
     const auto s = MetricSample::tryStale(kCpu, 1.0, kPct, 333);
     if (s) CHECK(s->timestamp() == 333);
 }
+
+// --- T7A.1: composite identity, sensor key, Celsius, SensorDefinition -------
+
+void test_default_sensor_key_is_empty() {
+    // Existing single-instance metrics carry an empty key: the category alone
+    // identifies them.
+    const MetricSample u = MetricSample::unavailable(kCpu, 1);
+    CHECK(u.sensorKey().empty());
+    const auto f = MetricSample::tryFresh(kCpu, 25.0, kPct, 2);
+    if (f) CHECK(f->sensorKey().empty());
+}
+
+void test_sensor_key_populated_for_temperature() {
+    const auto pkg = MetricSample::tryFresh(MetricId::CpuTemperature, 64.0,
+                                            MetricUnit::Celsius, 10, "package");
+    CHECK(pkg.has_value());
+    if (pkg) {
+        CHECK(pkg->id() == MetricId::CpuTemperature);
+        CHECK(pkg->sensorKey() == "package");
+        CHECK(pkg->unit() == MetricUnit::Celsius);
+        CHECK(pkg->value() == std::optional<double>(64.0));
+    }
+}
+
+void test_identity_composite() {
+    const auto ccd1 = MetricSample::tryFresh(MetricId::CpuTemperature, 60.0,
+                                             MetricUnit::Celsius, 10, "ccd1");
+    if (ccd1) {
+        const darkspark::models::SensorKey id = ccd1->identity();
+        CHECK(id.category == MetricId::CpuTemperature);
+        CHECK(id.key == "ccd1");
+    }
+}
+
+void test_equality_differs_by_sensor_key() {
+    // Same category, unit, value, timestamp, state — different key => different.
+    const auto a = MetricSample::tryFresh(MetricId::CpuTemperature, 60.0,
+                                          MetricUnit::Celsius, 10, "ccd1");
+    const auto b = MetricSample::tryFresh(MetricId::CpuTemperature, 60.0,
+                                          MetricUnit::Celsius, 10, "ccd2");
+    if (a && b) CHECK(*a != *b);
+    else { CHECK(a.has_value()); CHECK(b.has_value()); }
+}
+
+void test_equality_same_key_equal() {
+    const auto a = MetricSample::tryFresh(MetricId::CpuTemperature, 60.0,
+                                          MetricUnit::Celsius, 10, "package");
+    const auto b = MetricSample::tryFresh(MetricId::CpuTemperature, 60.0,
+                                          MetricUnit::Celsius, 10, "package");
+    if (a && b) CHECK(*a == *b);
+    else { CHECK(a.has_value()); CHECK(b.has_value()); }
+}
+
+void test_sensor_key_struct_equality() {
+    using darkspark::models::SensorKey;
+    const SensorKey a{MetricId::CpuTemperature, "package"};
+    const SensorKey b{MetricId::CpuTemperature, "package"};
+    const SensorKey c{MetricId::CpuTemperature, "ccd1"};
+    CHECK(a == b);
+    CHECK(a != c);
+}
+
+void test_celsius_unit_carried() {
+    const auto s = MetricSample::tryFresh(MetricId::CpuTemperature, 42.5,
+                                          MetricUnit::Celsius, 5, "package");
+    if (s) CHECK(s->unit() == MetricUnit::Celsius);
+}
+
+void test_sensor_definition_minimal() {
+    using darkspark::models::SensorDefinition;
+    using darkspark::models::SensorKey;
+    SensorDefinition def;
+    def.identity = SensorKey{MetricId::CpuTemperature, "package"};
+    def.displayName = "CPU Package";
+    def.unit = MetricUnit::Celsius;
+    CHECK(def.category() == MetricId::CpuTemperature);
+    CHECK(def.key() == "package");
+    CHECK(def.unit == MetricUnit::Celsius);
+    CHECK(def.displayName == "CPU Package");
+
+    SensorDefinition same = def;
+    CHECK(same == def);
+    same.displayName = "Changed";
+    CHECK(same != def);
+}
 }
 int main() {
     test_unavailable_has_no_value();
@@ -104,6 +190,14 @@ int main() {
     test_equality_differs_by_timestamp();
     test_fresh_not_equal_stale_same_value();
     test_timestamp_carry();
+    test_default_sensor_key_is_empty();
+    test_sensor_key_populated_for_temperature();
+    test_identity_composite();
+    test_equality_differs_by_sensor_key();
+    test_equality_same_key_equal();
+    test_sensor_key_struct_equality();
+    test_celsius_unit_carried();
+    test_sensor_definition_minimal();
     if (g_failures == 0) { std::puts("All MetricSample tests passed."); return 0; }
     std::fprintf(stderr, "%d check(s) failed.\n", g_failures); return 1;
 }

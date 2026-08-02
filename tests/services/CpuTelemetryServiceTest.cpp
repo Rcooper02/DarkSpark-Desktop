@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <QCoreApplication>
+#include <QList>
 #include <QObject>
 
 #include "models/MetricSample.hpp"
@@ -371,7 +372,10 @@ void test_current_sample_before_start_is_unavailable() {
     ScriptedSource script;
     auto* service = makeService(script, owner);
 
-    const MetricSample s = service->currentSample();
+    const QList<MetricSample> samples = service->currentSamples();
+    CHECK(samples.size() == 1);
+    if (samples.isEmpty()) return;
+    const MetricSample s = samples.first();
     CHECK(s.state() == MetricState::Unavailable);
     CHECK(!s.value().has_value());
     CHECK(s.id() == MetricId::CpuTotalUtilization);
@@ -389,7 +393,11 @@ void test_current_sample_matches_last_emitted() {
     drivePoll(service);
 
     if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(service->currentSample() == collector.samples.back());
+    const QList<MetricSample> samples = service->currentSamples();
+    CHECK(samples.size() == 1);
+    if (!samples.isEmpty()) {
+        CHECK(samples.first() == collector.samples.back());
+    }
 }
 
 void test_start_stop_idempotence_and_queryability() {
@@ -404,8 +412,11 @@ void test_start_stop_idempotence_and_queryability() {
     service->stop();   // no-op
 
     // Last emitted sample remains queryable after stop.
-    const MetricSample s = service->currentSample();
-    CHECK(s.id() == MetricId::CpuTotalUtilization);
+    const QList<MetricSample> samples = service->currentSamples();
+    CHECK(samples.size() == 1);
+    if (!samples.isEmpty()) {
+        CHECK(samples.first().id() == MetricId::CpuTotalUtilization);
+    }
 }
 
 void test_start_after_stop_clears_baseline() {
@@ -473,7 +484,10 @@ void test_reading_changed_reaches_external_receiver() {
     if (received[1].value()) CHECK(*received[1].value() == 25.0);
     if (received[2].value()) CHECK(*received[2].value() == 25.0);
     // The receiver sees exactly what the provider reports.
-    CHECK(received.back() == service->currentSample());
+    const QList<MetricSample> samples = service->currentSamples();
+    if (!samples.isEmpty()) {
+        CHECK(received.back() == samples.first());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -729,7 +743,10 @@ void test_memory_current_sample_before_start_is_unavailable() {
     ScriptedMeminfo script;
     auto* service = makeMemoryService(script, owner);
 
-    const MetricSample s = service->currentSample();
+    const QList<MetricSample> samples = service->currentSamples();
+    CHECK(samples.size() == 1);
+    if (samples.isEmpty()) return;
+    const MetricSample s = samples.first();
     CHECK(s.state() == MetricState::Unavailable);
     CHECK(!s.value().has_value());
     CHECK(s.id() == MetricId::MemoryUtilization);
@@ -746,8 +763,11 @@ void test_memory_start_stop_idempotence() {
     service->stop();
     service->stop();   // no-op
 
-    const MetricSample s = service->currentSample();
-    CHECK(s.id() == MetricId::MemoryUtilization);
+    const QList<MetricSample> samples = service->currentSamples();
+    CHECK(samples.size() == 1);
+    if (!samples.isEmpty()) {
+        CHECK(samples.first().id() == MetricId::MemoryUtilization);
+    }
 }
 
 void test_memory_timestamp_carry() {
