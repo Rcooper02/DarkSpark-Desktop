@@ -66,6 +66,8 @@ qt_add_executable(darkspark-desktop
     src/services/CpuTelemetryService.hpp
     src/services/MemoryTelemetryService.cpp
     src/services/MemoryTelemetryService.hpp
+    src/services/HwmonDiscovery.cpp
+    src/services/HwmonDiscovery.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -130,6 +132,8 @@ if(BUILD_TESTING)
         src/services/CpuTelemetryService.hpp
         src/services/MemoryTelemetryService.cpp
         src/services/MemoryTelemetryService.hpp
+        src/services/HwmonDiscovery.cpp
+        src/services/HwmonDiscovery.hpp
 	src/interfaces/ITelemetryProvider.hpp
         src/models/MetricSample.cpp
     )

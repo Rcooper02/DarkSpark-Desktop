@@ -14,11 +14,15 @@
 #include <vector>
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QList>
+#include <QTemporaryDir>
 #include <QObject>
 
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
+#include "services/HwmonDiscovery.hpp"
 #include "services/MemoryTelemetryService.hpp"
 
 using darkspark::models::MetricId;
@@ -783,6 +787,273 @@ void test_memory_timestamp_carry() {
     CHECK(collector.samples[0].timestamp() > 0);
 }
 
+// ---------------------------------------------------------------------------
+// HwmonDiscovery
+//
+// All tests build a synthetic hwmon tree under a QTemporaryDir; none touch the
+// real /sys/class/hwmon. Kept in this translation unit because the project uses
+// a single darkspark-services-test executable.
+// ---------------------------------------------------------------------------
+
+using darkspark::services::DiscoveredSensor;
+using darkspark::services::HwmonDiscovery;
+
+/// Helper: write `content` to `dir/name`, creating parent dirs as needed.
+void writeFile(const QString& dir, const QString& name, const QString& content) {
+    QDir().mkpath(dir);
+    QFile f(dir + QStringLiteral("/") + name);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        f.write(content.toUtf8());
+        f.close();
+    }
+}
+
+/// Helper: create an hwmon device directory `root/hwmonN` with a name file.
+QString makeDevice(const QString& root, int index, const QString& name) {
+    const QString dir =
+        root + QStringLiteral("/hwmon") + QString::number(index);
+    writeFile(dir, QStringLiteral("name"), name);
+    return dir;
+}
+
+/// Helper: add a temp<slot>_label / temp<slot>_input pair to a device dir.
+void addTempPair(const QString& deviceDir, int slot, const QString& label,
+                 const QString& milliValue) {
+    const QString base = QStringLiteral("temp") + QString::number(slot);
+    writeFile(deviceDir, base + QStringLiteral("_label"), label);
+    writeFile(deviceDir, base + QStringLiteral("_input"), milliValue);
+}
+
+/// Find a discovered sensor by its stable key; returns nullptr if absent.
+const DiscoveredSensor* findByKey(const QList<DiscoveredSensor>& list,
+                                  const char* key) {
+    for (const DiscoveredSensor& s : list) {
+        if (s.definition.identity.key == key) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+void test_discovery_basic_package_and_ccds() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 3, QStringLiteral("k10temp"));
+    addTempPair(dev, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+    addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+    addTempPair(dev, 3, QStringLiteral("Tccd2"), QStringLiteral("58000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 3);
+    const DiscoveredSensor* pkg = findByKey(found, "package");
+    const DiscoveredSensor* c1 = findByKey(found, "ccd1");
+    const DiscoveredSensor* c2 = findByKey(found, "ccd2");
+    CHECK(pkg != nullptr);
+    CHECK(c1 != nullptr);
+    CHECK(c2 != nullptr);
+    if (pkg) {
+        CHECK(pkg->definition.category() == MetricId::CpuTemperature);
+        CHECK(pkg->definition.unit == darkspark::models::MetricUnit::Celsius);
+        CHECK(pkg->definition.displayName == "CPU Package");
+        CHECK(pkg->inputPath.endsWith(QStringLiteral("temp1_input")));
+    }
+    if (c1) CHECK(c1->definition.displayName == "CPU CCD1");
+}
+
+void test_discovery_ignores_unrelated_devices() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    // An unrelated device that must be ignored entirely.
+    const QString gpu = makeDevice(root, 0, QStringLiteral("amdgpu"));
+    addTempPair(gpu, 1, QStringLiteral("edge"), QStringLiteral("50000"));
+    // The CPU device.
+    const QString cpu = makeDevice(root, 1, QStringLiteral("k10temp"));
+    addTempPair(cpu, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 1);
+    CHECK(findByKey(found, "package") != nullptr);
+}
+
+void test_discovery_missing_name_file_skipped() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    // Device directory with temp files but no name file.
+    const QString dir = root + QStringLiteral("/hwmon0");
+    addTempPair(dir, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+
+    const HwmonDiscovery discovery(root);
+    CHECK(discovery.discover().isEmpty());
+}
+
+void test_discovery_missing_paired_input_skipped() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    // A label with no paired input file.
+    writeFile(dev, QStringLiteral("temp1_label"), QStringLiteral("Tctl"));
+    // A well-formed one to prove the loop continues past the bad entry.
+    addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 1);
+    CHECK(findByKey(found, "package") == nullptr);
+    CHECK(findByKey(found, "ccd1") != nullptr);
+}
+
+void test_discovery_malformed_value_skipped() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    addTempPair(dev, 1, QStringLiteral("Tctl"), QStringLiteral("not-a-number"));
+    addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 1);
+    CHECK(findByKey(found, "package") == nullptr);  // malformed -> skipped
+    CHECK(findByKey(found, "ccd1") != nullptr);
+}
+
+void test_discovery_missing_label_no_sensor() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    // An input with no label: nothing to identify it, so nothing is bound.
+    writeFile(dev, QStringLiteral("temp1_input"), QStringLiteral("64000"));
+
+    const HwmonDiscovery discovery(root);
+    CHECK(discovery.discover().isEmpty());
+}
+
+void test_discovery_duplicate_labels_deterministic() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    // Two labels resolving to the same logical key.
+    addTempPair(dev, 1, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+    addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("61000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    // Exactly one ccd1 is bound; the duplicate is dropped deterministically.
+    CHECK(found.size() == 1);
+    CHECK(findByKey(found, "ccd1") != nullptr);
+}
+
+void test_discovery_tctl_and_tdie_both_present() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    // Both map to "package": must resolve to a single package sensor.
+    addTempPair(dev, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+    addTempPair(dev, 2, QStringLiteral("Tdie"), QStringLiteral("63000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 1);
+    CHECK(findByKey(found, "package") != nullptr);
+}
+
+void test_discovery_multiple_ccds() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    addTempPair(dev, 1, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+    addTempPair(dev, 2, QStringLiteral("Tccd2"), QStringLiteral("61000"));
+    addTempPair(dev, 3, QStringLiteral("Tccd3"), QStringLiteral("62000"));
+    addTempPair(dev, 4, QStringLiteral("Tccd4"), QStringLiteral("63000"));
+
+    const HwmonDiscovery discovery(root);
+    const QList<DiscoveredSensor> found = discovery.discover();
+
+    CHECK(found.size() == 4);
+    CHECK(findByKey(found, "ccd1") != nullptr);
+    CHECK(findByKey(found, "ccd4") != nullptr);
+    // Deterministic order by key: ccd1, ccd2, ccd3, ccd4.
+    if (found.size() == 4) {
+        CHECK(found[0].definition.identity.key == "ccd1");
+        CHECK(found[3].definition.identity.key == "ccd4");
+    }
+}
+
+void test_discovery_hwmon_reordering_is_stable() {
+    // The same device at a different hwmonN index must yield the same logical
+    // sensors, proving discovery does not depend on the number.
+    auto build = [](const QString& root, int index) {
+        const QString dev = makeDevice(root, index, QStringLiteral("k10temp"));
+        addTempPair(dev, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+        addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+    };
+
+    QTemporaryDir a;
+    QTemporaryDir b;
+    CHECK(a.isValid());
+    CHECK(b.isValid());
+    build(a.path(), 2);
+    build(b.path(), 7);
+
+    const QList<DiscoveredSensor> fa = HwmonDiscovery(a.path()).discover();
+    const QList<DiscoveredSensor> fb = HwmonDiscovery(b.path()).discover();
+
+    CHECK(fa.size() == 2);
+    CHECK(fb.size() == 2);
+    // Same logical identities regardless of hwmonN.
+    CHECK((findByKey(fa, "package") != nullptr)
+          == (findByKey(fb, "package") != nullptr));
+    CHECK((findByKey(fa, "ccd1") != nullptr)
+          == (findByKey(fb, "ccd1") != nullptr));
+}
+
+void test_discovery_sensor_disappearance() {
+    // A path discovered earlier may vanish; a re-scan simply omits it, without
+    // crashing or reusing the stale path.
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString root = tmp.path();
+    const QString dev = makeDevice(root, 0, QStringLiteral("k10temp"));
+    addTempPair(dev, 1, QStringLiteral("Tctl"), QStringLiteral("64000"));
+    addTempPair(dev, 2, QStringLiteral("Tccd1"), QStringLiteral("60000"));
+
+    const HwmonDiscovery discovery(root);
+    CHECK(discovery.discover().size() == 2);
+
+    // Remove the whole device directory, then re-scan.
+    QDir(dev).removeRecursively();
+    CHECK(discovery.discover().isEmpty());
+}
+
+void test_discovery_empty_root() {
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const HwmonDiscovery discovery(tmp.path());
+    CHECK(discovery.discover().isEmpty());
+}
+
+void test_discovery_nonexistent_root() {
+    const HwmonDiscovery discovery(
+        QStringLiteral("/does/not/exist/darkspark-test"));
+    CHECK(discovery.discover().isEmpty());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -826,6 +1097,20 @@ int main(int argc, char** argv) {
     test_memory_current_sample_before_start_is_unavailable();
     test_memory_start_stop_idempotence();
     test_memory_timestamp_carry();
+
+    test_discovery_basic_package_and_ccds();
+    test_discovery_ignores_unrelated_devices();
+    test_discovery_missing_name_file_skipped();
+    test_discovery_missing_paired_input_skipped();
+    test_discovery_malformed_value_skipped();
+    test_discovery_missing_label_no_sensor();
+    test_discovery_duplicate_labels_deterministic();
+    test_discovery_tctl_and_tdie_both_present();
+    test_discovery_multiple_ccds();
+    test_discovery_hwmon_reordering_is_stable();
+    test_discovery_sensor_disappearance();
+    test_discovery_empty_root();
+    test_discovery_nonexistent_root();
 
     if (g_failures == 0) {
         std::puts("All telemetry service tests passed.");
