@@ -18,6 +18,7 @@
 
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
+#include "services/MemoryTelemetryService.hpp"
 
 using darkspark::models::MetricId;
 using darkspark::models::MetricSample;
@@ -475,6 +476,293 @@ void test_reading_changed_reaches_external_receiver() {
     CHECK(received.back() == service->currentSample());
 }
 
+// ---------------------------------------------------------------------------
+// MemoryTelemetryService
+//
+// Kept in this translation unit because the project uses a single
+// darkspark-services-test executable; a second test file would introduce a
+// second main().
+// ---------------------------------------------------------------------------
+
+using darkspark::services::MemoryTelemetryService;
+using darkspark::services::detail::MemorySources;
+
+/// Scripted meminfo source: returns queued contents in order, then nullopt.
+class ScriptedMeminfo {
+public:
+    void push(std::optional<std::string> content) { entries_.push_back(content); }
+
+    [[nodiscard]] std::optional<std::string> next() {
+        if (index_ >= entries_.size()) {
+            return std::nullopt;
+        }
+        return entries_[index_++];
+    }
+
+    [[nodiscard]] MonotonicTimestamp now() { return ++tick_; }
+
+private:
+    std::vector<std::optional<std::string>> entries_;
+    std::size_t index_ = 0;
+    MonotonicTimestamp tick_ = 0;
+};
+
+MemoryTelemetryService* makeMemoryService(ScriptedMeminfo& script,
+                                          QObject& owner) {
+    MemorySources sources;
+    sources.readMeminfo = [&script]() { return script.next(); };
+    sources.now = [&script]() { return script.now(); };
+    return darkspark::services::detail::makeWithSources(std::move(sources),
+                                                        &owner);
+}
+
+class MemoryCollector : public QObject {
+public:
+    explicit MemoryCollector(MemoryTelemetryService* service) {
+        connect(service, &MemoryTelemetryService::readingChanged, this,
+                [this](const MetricSample& s) { samples.push_back(s); });
+    }
+    std::vector<MetricSample> samples;
+};
+
+void driveMemoryPoll(MemoryTelemetryService* service) {
+    darkspark::services::detail::pollOnceForTest(*service);
+}
+
+std::string meminfo(unsigned long long total, unsigned long long available) {
+    return "MemTotal:       " + std::to_string(total)
+           + " kB\nMemFree:         12345 kB\nMemAvailable:   "
+           + std::to_string(available) + " kB\nBuffers:          6789 kB\n";
+}
+
+void test_memory_first_valid_read_is_fresh_immediately() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    // Unlike CPU, there is no baseline warm-up: the first valid read is usable.
+    CHECK(collector.samples.size() == 1);
+    if (collector.samples.empty()) return;
+    CHECK(collector.samples[0].state() == MetricState::Fresh);
+    CHECK(collector.samples[0].id() == MetricId::MemoryUtilization);
+    if (collector.samples[0].value()) {
+        CHECK(*collector.samples[0].value() == 60.0);
+    }
+}
+
+void test_memory_boundaries() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 1000));  // fully available -> 0%
+    script.push(meminfo(1000, 0));     // none available  -> 100%
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+    driveMemoryPoll(service);
+
+    if (collector.samples.size() < 2) { CHECK(false); return; }
+    if (collector.samples[0].value()) CHECK(*collector.samples[0].value() == 0.0);
+    if (collector.samples[1].value()) CHECK(*collector.samples[1].value() == 100.0);
+}
+
+void test_memory_total_missing_is_failure() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(std::string("MemAvailable:   400 kB\n"));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+}
+
+void test_memory_available_missing_is_failure_no_fallback() {
+    QObject owner;
+    ScriptedMeminfo script;
+    // MemFree is present but must NOT be used as a substitute.
+    script.push(std::string("MemTotal: 1000 kB\nMemFree: 400 kB\n"));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    CHECK(!collector.samples[0].value().has_value());
+}
+
+void test_memory_non_numeric_is_failure() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(std::string("MemTotal: abc kB\nMemAvailable: 400 kB\n"));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+}
+
+void test_memory_zero_total_is_failure() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(0, 0));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+}
+
+void test_memory_available_exceeds_total_is_failure() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(100, 200));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+}
+
+void test_memory_read_failure_without_prior_value_is_unavailable() {
+    QObject owner;
+    ScriptedMeminfo script;  // empty -> read returns nullopt
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    CHECK(!collector.samples[0].value().has_value());
+}
+
+void test_memory_failure_after_valid_value_is_stale() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));  // Fresh 60%
+    script.push(std::nullopt);        // read failure
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+    driveMemoryPoll(service);
+
+    if (collector.samples.size() < 2) { CHECK(false); return; }
+    CHECK(collector.samples[1].state() == MetricState::Stale);
+    if (collector.samples[1].value()) {
+        CHECK(*collector.samples[1].value() == 60.0);
+    }
+}
+
+void test_memory_recovery_is_fresh_immediately() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));  // Fresh 60%
+    script.push(std::nullopt);        // Stale
+    script.push(meminfo(1000, 250));  // recovery -> Fresh 75%, no re-baseline
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+    driveMemoryPoll(service);
+    driveMemoryPoll(service);
+
+    if (collector.samples.size() < 3) { CHECK(false); return; }
+    CHECK(collector.samples[1].state() == MetricState::Stale);
+    // Contrast with CPU: no Unavailable re-baseline step is required.
+    CHECK(collector.samples[2].state() == MetricState::Fresh);
+    if (collector.samples[2].value()) {
+        CHECK(*collector.samples[2].value() == 75.0);
+    }
+}
+
+void test_memory_unknown_keys_ignored() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(std::string("Committed_AS: 999 kB\nMemTotal: 1000 kB\n"
+                            "SomethingElse: 5 kB\nMemAvailable: 400 kB\n"
+                            "Hugepagesize: 2048 kB\n"));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Fresh);
+    if (collector.samples[0].value()) {
+        CHECK(*collector.samples[0].value() == 60.0);
+    }
+}
+
+void test_memory_large_values_without_overflow() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000000000000ULL, 250000000000ULL));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].state() == MetricState::Fresh);
+    if (collector.samples[0].value()) {
+        CHECK(*collector.samples[0].value() == 75.0);
+    }
+}
+
+void test_memory_current_sample_before_start_is_unavailable() {
+    QObject owner;
+    ScriptedMeminfo script;
+    auto* service = makeMemoryService(script, owner);
+
+    const MetricSample s = service->currentSample();
+    CHECK(s.state() == MetricState::Unavailable);
+    CHECK(!s.value().has_value());
+    CHECK(s.id() == MetricId::MemoryUtilization);
+}
+
+void test_memory_start_stop_idempotence() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));
+    auto* service = makeMemoryService(script, owner);
+
+    service->start();
+    service->start();  // no-op
+    service->stop();
+    service->stop();   // no-op
+
+    const MetricSample s = service->currentSample();
+    CHECK(s.id() == MetricId::MemoryUtilization);
+}
+
+void test_memory_timestamp_carry() {
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));
+    auto* service = makeMemoryService(script, owner);
+    MemoryCollector collector(service);
+
+    driveMemoryPoll(service);
+
+    if (collector.samples.empty()) { CHECK(false); return; }
+    CHECK(collector.samples[0].timestamp() > 0);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -503,8 +791,24 @@ int main(int argc, char** argv) {
     test_timestamp_carry();
     test_reading_changed_reaches_external_receiver();
 
+    test_memory_first_valid_read_is_fresh_immediately();
+    test_memory_boundaries();
+    test_memory_total_missing_is_failure();
+    test_memory_available_missing_is_failure_no_fallback();
+    test_memory_non_numeric_is_failure();
+    test_memory_zero_total_is_failure();
+    test_memory_available_exceeds_total_is_failure();
+    test_memory_read_failure_without_prior_value_is_unavailable();
+    test_memory_failure_after_valid_value_is_stale();
+    test_memory_recovery_is_fresh_immediately();
+    test_memory_unknown_keys_ignored();
+    test_memory_large_values_without_overflow();
+    test_memory_current_sample_before_start_is_unavailable();
+    test_memory_start_stop_idempotence();
+    test_memory_timestamp_carry();
+
     if (g_failures == 0) {
-        std::puts("All CpuTelemetryService tests passed.");
+        std::puts("All telemetry service tests passed.");
         return 0;
     }
     std::fprintf(stderr, "%d check(s) failed.\n", g_failures);

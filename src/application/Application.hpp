@@ -4,6 +4,8 @@
 
 #include <memory>
 
+#include <QVector>
+
 #include <QObject>
 #include <QStringList>
 
@@ -74,27 +76,31 @@ private:
     void startDesktop();
     void startDeck(int requestedScreenIndex);
 
-    /// Create the telemetry provider (owned via Qt parenting) and begin
+    /// Create the telemetry providers (owned via Qt parenting) and begin
     /// sampling. Called once from run() before mode selection, so telemetry is
     /// available immediately whenever a Deck window appears.
     void startTelemetry();
 
-    /// Connect the telemetry provider to a freshly constructed DeckWindow.
+    /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
     /// Both DeckWindow creation paths (direct Deck startup and the launch
     /// request from the desktop window) route through this helper so the wiring
     /// is identical. The window is used as the connection context object, so
-    /// the connection is removed automatically if the window is destroyed.
+    /// connections are removed automatically if the window is destroyed.
     void connectTelemetryToDeck(deck::DeckWindow* window);
 
     QApplication& qtApp_;
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
     std::unique_ptr<deck::DeckWindow> deckWindow_;
-    /// Non-owning view of the telemetry provider. The concrete service is a
-    /// QObject child of this Application, so Qt owns its lifetime. Held through
-    /// the interface so the composition root does not depend on the concrete
-    /// service type beyond construction.
-    interfaces::ITelemetryProvider* telemetry_ = nullptr;
+    /// Non-owning views of the telemetry providers. Each concrete service is a
+    /// QObject child of this Application, so Qt owns their lifetimes. Held
+    /// through the interface so the composition root does not depend on any
+    /// concrete service type beyond construction.
+    ///
+    /// Application owns providers, not metrics: a provider is free to emit more
+    /// than one MetricId, and the UI routes on the sample's identity rather than
+    /// on which provider produced it.
+    QVector<interfaces::ITelemetryProvider*> providers_;
 };
 
 }  // namespace darkspark::application

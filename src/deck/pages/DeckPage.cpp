@@ -35,29 +35,56 @@ constexpr int kMaxColumns = 6;
     switch (id) {
     case models::MetricId::CpuTotalUtilization:
         return "CPU";
+    case models::MetricId::MemoryUtilization:
+        return "Memory";
     }
     return nullptr;
 }
 
-/// Utilization thresholds for the telemetry this page presents, kept local:
-/// they are a semantic judgement about the metric, not a presentation fact, and
-/// they differ per metric. DashboardCard stays presentation-only.
-constexpr double kWarningThresholdPercent = 85.0;
-constexpr double kCriticalThresholdPercent = 95.0;
+/// Escalation thresholds, kept local to the page: they are a semantic
+/// judgement about a metric, not a presentation fact, and they may differ per
+/// metric. DashboardCard stays presentation-only.
+struct Thresholds {
+    double warning;
+    double critical;
+};
+
+/// Thresholds are selected per metric so they can diverge without touching any
+/// call site. CPU and memory share values today; that is a current judgement,
+/// not a structural assumption.
+[[nodiscard]] Thresholds thresholdsForMetric(models::MetricId id) {
+    switch (id) {
+    case models::MetricId::CpuTotalUtilization:
+        return {85.0, 95.0};
+    case models::MetricId::MemoryUtilization:
+        return {85.0, 95.0};
+    }
+    return {85.0, 95.0};
+}
 
 /// Complete presentation string including the unit, so DashboardCard performs
 /// no formatting and stays metric-agnostic (docs/STYLE_GUIDE.md pairs a number
 /// with its unit and fixes the decimal count so values do not jitter).
-[[nodiscard]] QString formatPercent(double value) {
-    return QString::number(value, 'f', 1) + QStringLiteral(" %");
+///
+/// Formatting dispatches on the sample's unit rather than assuming a
+/// percentage, so a future unit is a new case here and nothing else changes.
+[[nodiscard]] QString formatValue(double value, models::MetricUnit unit) {
+    switch (unit) {
+    case models::MetricUnit::Percent:
+        return QString::number(value, 'f', 1) + QStringLiteral(" %");
+    }
+    return QString::number(value, 'f', 1);
 }
 
-/// Card presentation for a fresh reading, escalating by threshold.
-[[nodiscard]] cards::DashboardCard::State stateForUtilization(double percent) {
-    if (percent >= kCriticalThresholdPercent) {
+/// Card presentation for a fresh reading, escalating by that metric's
+/// thresholds.
+[[nodiscard]] cards::DashboardCard::State stateForReading(models::MetricId id,
+                                                          double value) {
+    const Thresholds limits = thresholdsForMetric(id);
+    if (value >= limits.critical) {
         return cards::DashboardCard::State::Critical;
     }
-    if (percent >= kWarningThresholdPercent) {
+    if (value >= limits.warning) {
         return cards::DashboardCard::State::Warning;
     }
     return cards::DashboardCard::State::Normal;
@@ -145,8 +172,8 @@ void DeckPage::receiveTelemetry(const models::MetricSample& sample) {
     switch (sample.state()) {
     case models::MetricState::Fresh:
         if (sample.value().has_value()) {
-            target->setState(stateForUtilization(*sample.value()));
-            target->setValueText(formatPercent(*sample.value()));
+            target->setState(stateForReading(sample.id(), *sample.value()));
+            target->setValueText(formatValue(*sample.value(), sample.unit()));
         } else {
             target->setState(DashboardCard::State::Normal);
         }
@@ -157,7 +184,7 @@ void DeckPage::receiveTelemetry(const models::MetricSample& sample) {
         target->setState(DashboardCard::State::Warning);
         // Retain and show the last valid percentage, explicitly marked stale.
         if (sample.value().has_value()) {
-            target->setValueText(formatPercent(*sample.value()));
+            target->setValueText(formatValue(*sample.value(), sample.unit()));
         }
         target->setStatusText(QStringLiteral("Stale"));
         break;

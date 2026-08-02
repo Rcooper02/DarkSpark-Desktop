@@ -6,6 +6,7 @@
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
+#include "services/MemoryTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -128,27 +129,35 @@ void Application::startDeck(int requestedScreenIndex) {
 }
 
 void Application::startTelemetry() {
-    if (telemetry_ != nullptr) {
+    if (!providers_.isEmpty()) {
         return;
     }
-    // The concrete service is a QObject child of this Application; Qt owns its
-    // lifetime. It is held through the interface so nothing downstream depends
-    // on the concrete type.
-    auto* service = new services::CpuTelemetryService(this);
-    telemetry_ = service;
-    telemetry_->start();
-    qCInfo(lcApp) << "CPU telemetry started";
+    // Each concrete service is a QObject child of this Application; Qt owns
+    // their lifetimes. They are held through the interface so nothing
+    // downstream depends on a concrete type.
+    providers_.append(new services::CpuTelemetryService(this));
+    providers_.append(new services::MemoryTelemetryService(this));
+
+    for (interfaces::ITelemetryProvider* provider : providers_) {
+        provider->start();
+    }
+    qCInfo(lcApp) << "Telemetry started; providers:" << providers_.size();
 }
 
 void Application::connectTelemetryToDeck(deck::DeckWindow* window) {
-    if (telemetry_ == nullptr || window == nullptr) {
+    if (window == nullptr) {
         return;
     }
-    connect(telemetry_, &interfaces::ITelemetryProvider::readingChanged, window,
-            &deck::DeckWindow::receiveTelemetry);
-    // Deliver the latest known sample immediately so a newly shown window is
-    // not blank until the next poll.
-    window->receiveTelemetry(telemetry_->currentSample());
+    for (interfaces::ITelemetryProvider* provider : providers_) {
+        if (provider == nullptr) {
+            continue;
+        }
+        connect(provider, &interfaces::ITelemetryProvider::readingChanged,
+                window, &deck::DeckWindow::receiveTelemetry);
+        // Deliver the latest known sample immediately so a newly shown window
+        // is not blank until the next poll.
+        window->receiveTelemetry(provider->currentSample());
+    }
 }
 
 }  // namespace darkspark::application

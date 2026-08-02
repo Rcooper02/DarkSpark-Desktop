@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <optional>
 namespace darkspark::models {
-enum class MetricId { CpuTotalUtilization };
+enum class MetricId { CpuTotalUtilization, MemoryUtilization };
 enum class MetricUnit { Percent };
 enum class MetricState { Unavailable, Fresh, Stale };
 using MonotonicTimestamp = std::int64_t;
