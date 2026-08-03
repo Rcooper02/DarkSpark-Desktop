@@ -2,6 +2,7 @@
 #include "application/Application.hpp"
 
 #include "deck/DeckWindow.hpp"
+#include "deck/instruments/InstrumentPreviewPage.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
@@ -14,7 +15,11 @@
 #include <QGuiApplication>
 #include <QList>
 #include <QLoggingCategory>
+#include <QKeySequence>
 #include <QScreen>
+#include <QShortcut>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <QString>
 #include <QStringList>
 
@@ -33,7 +38,9 @@ LaunchOptions Application::parseArguments(const QStringList& arguments) {
 
     for (int i = 1; i < arguments.size(); ++i) {
         const QString& arg = arguments.at(i);
-        if (arg == QStringLiteral("--deck")) {
+        if (arg == QStringLiteral("--instrument-preview")) {
+            options.mode = StartupMode::InstrumentPreview;
+        } else if (arg == QStringLiteral("--deck")) {
             options.mode = StartupMode::Deck;
         } else if (arg == QStringLiteral("--deck-screen")) {
             options.mode = StartupMode::Deck;
@@ -71,6 +78,9 @@ int Application::run(const LaunchOptions& options) {
         break;
     case StartupMode::Deck:
         startDeck(options.deckScreenIndex);
+        break;
+    case StartupMode::InstrumentPreview:
+        startInstrumentPreview();
         break;
     }
 
@@ -128,6 +138,31 @@ void Application::startDeck(int requestedScreenIndex) {
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
+}
+
+void Application::startInstrumentPreview() {
+    // A minimal, isolated host window for the prototype: themed background, the
+    // preview page centered in it. Deliberately not the full DeckWindow chrome
+    // (no pages/navigation) so the instrument is judged on its own.
+    auto window = std::make_unique<QWidget>();
+    window->setObjectName(themes::LegacyTheme::pageObjectName());
+    window->setStyleSheet(
+        QStringLiteral("QWidget#%1 { background-color: %2; }")
+            .arg(themes::LegacyTheme::pageObjectName(),
+                 themes::LegacyTheme::backgroundBase().name()));
+
+    auto* outer = new QVBoxLayout(window.get());
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->addWidget(new deck::instruments::InstrumentPreviewPage(
+        deck::instruments::InstrumentPreviewPage::Layout::SideBySide,
+        window.get()));
+
+    connect(new QShortcut(QKeySequence(Qt::Key_Escape), window.get()),
+            &QShortcut::activated, window.get(), &QWidget::close);
+
+    window->showFullScreen();
+    instrumentPreviewWindow_ = std::move(window);
+    qCInfo(lcApp) << "Started in Instrument Preview mode";
 }
 
 void Application::startTelemetry() {

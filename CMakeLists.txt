@@ -80,6 +80,15 @@ qt_add_executable(darkspark-desktop
     src/deck/cards/DashboardCard.hpp
     src/deck/cards/StatusIndicator.cpp
     src/deck/cards/StatusIndicator.hpp
+    src/deck/instruments/InstrumentSizeMode.hpp
+    src/deck/instruments/InstrumentState.hpp
+    src/deck/instruments/CpuInstrumentModel.hpp
+    src/deck/instruments/CpuInstrumentLayout.cpp
+    src/deck/instruments/CpuInstrumentLayout.hpp
+    src/deck/instruments/CpuInstrument.cpp
+    src/deck/instruments/CpuInstrument.hpp
+    src/deck/instruments/InstrumentPreviewPage.cpp
+    src/deck/instruments/InstrumentPreviewPage.hpp
     src/deck/navigation/PageManager.cpp
     src/deck/navigation/PageManager.hpp
     src/deck/navigation/PageIndicator.cpp
@@ -123,6 +132,22 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-models-test
         COMMAND darkspark-models-test
+    )
+
+    # Pure geometry test for the CPU instrument layout. Qt-free: the layout is
+    # deliberately separated from painting so it can be reasoned about and
+    # tested without a display.
+    add_executable(darkspark-instruments-test
+        tests/deck/instruments/CpuInstrumentLayoutTest.cpp
+        src/deck/instruments/CpuInstrumentLayout.cpp
+    )
+    target_include_directories(darkspark-instruments-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-instruments-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-instruments-test
+        COMMAND darkspark-instruments-test
     )
 
     # Service tests. CpuTelemetryService derives from QObject, so this target
