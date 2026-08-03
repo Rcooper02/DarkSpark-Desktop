@@ -2,7 +2,10 @@
 #include "application/Application.hpp"
 
 #include "deck/DeckWindow.hpp"
+#include "deck/instruments/CpuInstrument.hpp"
+#include "deck/instruments/CpuInstrumentModelAdapter.hpp"
 #include "deck/instruments/InstrumentPreviewPage.hpp"
+#include "deck/pages/CommandDeckPage.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
@@ -38,7 +41,9 @@ LaunchOptions Application::parseArguments(const QStringList& arguments) {
 
     for (int i = 1; i < arguments.size(); ++i) {
         const QString& arg = arguments.at(i);
-        if (arg == QStringLiteral("--instrument-preview")) {
+        if (arg == QStringLiteral("--command-deck")) {
+            options.mode = StartupMode::CommandDeck;
+        } else if (arg == QStringLiteral("--instrument-preview")) {
             options.mode = StartupMode::InstrumentPreview;
         } else if (arg == QStringLiteral("--deck")) {
             options.mode = StartupMode::Deck;
@@ -81,6 +86,9 @@ int Application::run(const LaunchOptions& options) {
         break;
     case StartupMode::InstrumentPreview:
         startInstrumentPreview();
+        break;
+    case StartupMode::CommandDeck:
+        startCommandDeck();
         break;
     }
 
@@ -196,6 +204,67 @@ void Application::startInstrumentPreview() {
     window->showFullScreen();
     instrumentPreviewWindow_ = std::move(window);
     qCInfo(lcApp) << "Started in Instrument Preview mode (live telemetry)";
+}
+
+void Application::startCommandDeck() {
+    // The real Command Deck composition, in its own fullscreen host. A new page
+    // that coexists with the existing card dashboard and the developer preview
+    // -- it replaces neither.
+    auto window = std::make_unique<QWidget>();
+    window->setObjectName(themes::LegacyTheme::pageObjectName());
+    window->setStyleSheet(
+        QStringLiteral("QWidget#%1 { background-color: %2; }")
+            .arg(themes::LegacyTheme::pageObjectName(),
+                 themes::LegacyTheme::backgroundBase().name()));
+
+    auto* outer = new QVBoxLayout(window.get());
+    outer->setContentsMargins(0, 0, 0, 0);
+    auto* page = new deck::pages::CommandDeckPage(window.get());
+    outer->addWidget(page);
+
+    connect(new QShortcut(QKeySequence(Qt::Key_Escape), window.get()),
+            &QShortcut::activated, window.get(), &QWidget::close);
+
+    // Telemetry wiring lives HERE, in the composition root -- not in the page.
+    // The page composes instruments and regions and knows nothing about
+    // telemetry; Application owns the adapter and provider wiring and drives the
+    // page's primary instrument:
+    //
+    //     provider -> adapter -> page->primaryInstrument()->setModel()
+    //
+    // A future subsystem instrument would be bound the same way, so the page
+    // never becomes a telemetry coordinator. Providers are owned by the window,
+    // independent of the dashboard's providers_, so the Command Deck is
+    // self-contained. The adapter is a plain value type; a shared_ptr captured
+    // by the sample handler ties its lifetime to the connections (and window).
+    auto* primary = page->primaryInstrument();
+    auto adapter =
+        std::make_shared<deck::instruments::CpuInstrumentModelAdapter>();
+    auto applySample = [adapter, primary](const models::MetricSample& sample) {
+        if (adapter->apply(sample)) {
+            primary->setModel(adapter->model());
+        }
+    };
+
+    auto* utilization = new services::CpuTelemetryService(window.get());
+    auto* thermal = new services::CpuThermalService(window.get());
+    for (interfaces::ITelemetryProvider* provider :
+         {static_cast<interfaces::ITelemetryProvider*>(utilization),
+          static_cast<interfaces::ITelemetryProvider*>(thermal)}) {
+        connect(provider, &interfaces::ITelemetryProvider::readingChanged,
+                window.get(), applySample);
+        provider->start();
+        // Immediate initialization: prime from current samples before the
+        // window is shown, so the first painted frame reflects real state.
+        const QList<models::MetricSample> primed = provider->currentSamples();
+        for (const models::MetricSample& sample : primed) {
+            applySample(sample);
+        }
+    }
+
+    window->showFullScreen();
+    commandDeckWindow_ = std::move(window);
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU telemetry)";
 }
 
 void Application::startTelemetry() {

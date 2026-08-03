@@ -2,6 +2,7 @@
 #ifndef DARKSPARK_DECK_INSTRUMENTS_CPUINSTRUMENT_HPP
 #define DARKSPARK_DECK_INSTRUMENTS_CPUINSTRUMENT_HPP
 
+#include <QString>
 #include <QWidget>
 
 #include "deck/instruments/CpuInstrumentModel.hpp"
@@ -53,6 +54,22 @@ public:
     void setModel(const CpuInstrumentModel& model);
     [[nodiscard]] CpuInstrumentModel model() const { return target_; }
 
+    /// The instrument's title. Defaults to "CPU" so the primary CPU instrument
+    /// renders exactly as before. Temporary subsystem shells (GPU, Memory, ...)
+    /// override this while awaiting their real instrument. Presentation only:
+    /// it changes the drawn label and nothing else.
+    void setTitle(const QString& title);
+    [[nodiscard]] QString title() const { return title_; }
+
+    /// Mark this instrument as a temporary shell awaiting telemetry. A shell
+    /// renders its dormant conduits (from an all-Absent model) and a restrained
+    /// "Awaiting Telemetry" caption in place of the numeric secondary line. This
+    /// is how the Command Deck shows a subsystem slot as present-but-not-yet-live
+    /// without any subsystem-specific class or geometry. Defaults to false, so
+    /// the real CPU instrument is never a shell.
+    void setAwaitingTelemetry(bool awaiting);
+    [[nodiscard]] bool isAwaitingTelemetry() const { return awaitingTelemetry_; }
+
     void setSizeMode(InstrumentSizeMode mode);
     [[nodiscard]] InstrumentSizeMode sizeMode() const { return mode_; }
 
@@ -75,6 +92,8 @@ private:
 
     InstrumentSizeMode mode_;
     InstrumentState state_ = InstrumentState::Idle;
+    QString title_ = QStringLiteral("CPU");
+    bool awaitingTelemetry_ = false;
 
     /// The instrument interpolates what it DRAWS toward the latest model it was
     /// GIVEN, so telemetry updates read as smooth transitions rather than jumps.

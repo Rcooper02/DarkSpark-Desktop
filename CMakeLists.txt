@@ -76,6 +76,8 @@ qt_add_executable(darkspark-desktop
     src/deck/DeckWindow.hpp
     src/deck/pages/DeckPage.cpp
     src/deck/pages/DeckPage.hpp
+    src/deck/pages/CommandDeckPage.cpp
+    src/deck/pages/CommandDeckPage.hpp
     src/deck/cards/DashboardCard.cpp
     src/deck/cards/DashboardCard.hpp
     src/deck/cards/StatusIndicator.cpp

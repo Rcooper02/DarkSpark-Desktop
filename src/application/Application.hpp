@@ -27,9 +27,10 @@ namespace darkspark::application {
 
 /// Startup mode selected from the command line.
 enum class StartupMode {
-    Desktop,          ///< standard development window (default)
-    Deck,             ///< Deck Mode fullscreen
-    InstrumentPreview ///< isolated CpuInstrument prototype review surface
+    Desktop,           ///< standard development window (default)
+    Deck,              ///< Deck Mode fullscreen
+    InstrumentPreview, ///< isolated CpuInstrument developer preview surface
+    CommandDeck        ///< the real Command Deck composition
 };
 
 /// Parsed, validated command-line options.
@@ -83,6 +84,12 @@ private:
     /// only for --instrument-preview; the normal launch paths never reach it.
     void startInstrumentPreview();
 
+    /// Show the Command Deck (the real dashboard composition). Built only for
+    /// --command-deck; coexists with the existing card dashboard and the
+    /// developer preview, replacing neither. Owns the live CPU telemetry
+    /// binding so the page stays telemetry-independent.
+    void startCommandDeck();
+
     /// Create the telemetry providers (owned via Qt parenting) and begin
     /// sampling. Called once from run() before mode selection, so telemetry is
     /// available immediately whenever a Deck window appears.
@@ -106,6 +113,7 @@ private:
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
     std::unique_ptr<deck::DeckWindow> deckWindow_;
     std::unique_ptr<QWidget> instrumentPreviewWindow_;
+    std::unique_ptr<QWidget> commandDeckWindow_;
     /// Non-owning views of the telemetry providers. Each concrete service is a
     /// QObject child of this Application, so Qt owns their lifetimes. Held
     /// through the interface so the composition root does not depend on any

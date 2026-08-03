@@ -266,12 +266,14 @@ void paintSegmentedRing(QPainter& painter, const CpuInstrumentLayout& layout,
 
 void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
                       const CpuInstrumentModel& model, InstrumentSizeMode mode,
-                      const AccentPair& accents) {
+                      const AccentPair& accents, const QString& title,
+                      bool awaiting) {
     const QString mono = LegacyTheme::monoFontFamily();
 
-    // Title "CPU": present even in Small, so the instrument stays understandable
-    // when moved or resized. Compact and subordinate, but deliberate -- wide
-    // tracking makes it read as a machined label rather than a shy caption.
+    // Title (default "CPU"): present even in Small, so the instrument stays
+    // understandable when moved or resized. Compact and subordinate, but
+    // deliberate -- wide tracking makes it read as a machined label rather than
+    // a shy caption. Subsystem shells override the title (GPU, Memory, ...).
     {
         QFont f(mono);
         const int titlePx =
@@ -285,8 +287,7 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         QColor titleColor = LegacyTheme::textSecondary().lighter(115);
         painter.setPen(titleColor);
         const QRectF box(0, layout.titleY - titlePx, layout.side, titlePx * 1.6);
-        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter,
-                         QStringLiteral("CPU"));
+        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, title);
     }
 
     // The dominant utilization value: the one number read across the room. Mono,
@@ -301,8 +302,14 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.setFont(f);
         const double h = layout.primaryValuePx * 1.4;
         const QRectF box(0, layout.valueY - h / 2.0, layout.side, h);
-        const QString text = QString::number(model.utilizationPercent, 'f', 0)
-                             + QStringLiteral("%");
+        // When utilization has no value (a shell awaiting telemetry, or a live
+        // instrument whose utilization is momentarily unavailable), show a
+        // restrained placeholder instead of a fabricated 0%. Presentation only.
+        const QString text =
+            (model.utilizationAvailability == ValueAvailability::Absent)
+                ? QStringLiteral("--")
+                : QString::number(model.utilizationPercent, 'f', 0)
+                      + QStringLiteral("%");
 
         // Glow underlay in the utilization accent, low alpha.
         QColor valueGlow = accents.utilization;
@@ -315,28 +322,41 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, text);
     }
 
-    // Secondary temperature: easily readable but clearly subordinate.
+    // Secondary line. For a live instrument this is the temperature; for a
+    // temporary shell it is the restrained "Awaiting Telemetry" caption. Both
+    // are subordinate and muted so they never compete with the primary value.
     {
         QFont f(mono);
         const int tempPx =
             (mode == InstrumentSizeMode::Small) ? 12 : LegacyTheme::fontCardSubtitle();
-        f.setPixelSize(tempPx);
+        f.setPixelSize(awaiting ? std::max(9, tempPx - 2) : tempPx);
         f.setWeight(QFont::Medium);
+        if (awaiting) {
+            // Slight tracking makes the caption read as a deliberate status line.
+            f.setLetterSpacing(QFont::AbsoluteSpacing, 1.0);
+        }
         painter.setFont(f);
-        // Subordinate: muted text, not the temperature accent, so temperature
-        // does not compete with utilization for the eye. The accent lives on the
-        // ring, where it separates the two readings without shouting.
+        // Subordinate: muted text, not the temperature accent, so the secondary
+        // line does not compete with utilization for the eye. The accent lives
+        // on the ring, where it separates readings without shouting.
         painter.setPen(LegacyTheme::textSecondary());
         const QRectF box(0, layout.secondaryY - tempPx, layout.side, tempPx * 1.8);
-        // When package temperature is unavailable, show a restrained neutral
-        // placeholder rather than a fabricated number. This is presentation
-        // only: it carries no health meaning, it simply says "no reading".
-        const QString tempText =
-            (model.temperatureAvailability == ValueAvailability::Absent)
-                ? QStringLiteral("--\u00B0C")
-                : QString::number(model.temperatureCelsius, 'f', 0)
-                      + QStringLiteral("\u00B0C");
-        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, tempText);
+        QString secondaryText;
+        if (awaiting) {
+            // A shell awaiting its real instrument: no numbers, just a quiet
+            // status caption. The dormant conduits already convey "present but
+            // not live".
+            secondaryText = QStringLiteral("Awaiting Telemetry");
+        } else if (model.temperatureAvailability == ValueAvailability::Absent) {
+            // Live instrument with no current package temperature: a restrained
+            // neutral placeholder rather than a fabricated number. Presentation
+            // only; carries no health meaning.
+            secondaryText = QStringLiteral("--\u00B0C");
+        } else {
+            secondaryText = QString::number(model.temperatureCelsius, 'f', 0)
+                            + QStringLiteral("\u00B0C");
+        }
+        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, secondaryText);
     }
 }
 
@@ -440,6 +460,22 @@ void CpuInstrument::setSizeMode(InstrumentSizeMode mode) {
     mode_ = mode;
     applySizePolicyForMode();
     updateGeometry();
+    update();
+}
+
+void CpuInstrument::setTitle(const QString& title) {
+    if (title_ == title) {
+        return;
+    }
+    title_ = title;
+    update();
+}
+
+void CpuInstrument::setAwaitingTelemetry(bool awaiting) {
+    if (awaitingTelemetry_ == awaiting) {
+        return;
+    }
+    awaitingTelemetry_ = awaiting;
     update();
 }
 
@@ -551,7 +587,8 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
                        accents.temperature, glow);
 
     // --- Layer 3: INFORMATION ------------------------------------------------
-    paintCenterStack(painter, layout, displayed_, mode_, accents);
+    paintCenterStack(painter, layout, displayed_, mode_, accents, title_,
+                     awaitingTelemetry_);
 
     // Reserved regions (trend band, status gap, per-core annulus) are accounted
     // for in the layout but intentionally not drawn: the composition already
