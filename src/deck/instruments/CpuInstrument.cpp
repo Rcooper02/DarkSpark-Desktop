@@ -10,6 +10,8 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QRadialGradient>
+#include <QSizePolicy>
+#include <QTimer>
 #include <QRectF>
 #include <QString>
 
@@ -326,27 +328,117 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         // ring, where it separates the two readings without shouting.
         painter.setPen(LegacyTheme::textSecondary());
         const QRectF box(0, layout.secondaryY - tempPx, layout.side, tempPx * 1.8);
-        painter.drawText(
-            box, Qt::AlignHCenter | Qt::AlignVCenter,
-            QString::number(model.temperatureCelsius, 'f', 0)
-                + QStringLiteral("\u00B0C"));
+        // When package temperature is unavailable, show a restrained neutral
+        // placeholder rather than a fabricated number. This is presentation
+        // only: it carries no health meaning, it simply says "no reading".
+        const QString tempText =
+            (model.temperatureAvailability == ValueAvailability::Absent)
+                ? QStringLiteral("--\u00B0C")
+                : QString::number(model.temperatureCelsius, 'f', 0)
+                      + QStringLiteral("\u00B0C");
+        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, tempText);
     }
 }
 
 }  // namespace
 
 CpuInstrument::CpuInstrument(InstrumentSizeMode mode, QWidget* parent)
-    : QWidget(parent), mode_(mode) {
+    : QWidget(parent), mode_(mode), transitionTimer_(new QTimer(this)) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
+    applySizePolicyForMode();
+    // ~60fps ticks while a transition is in progress; the timer is stopped
+    // whenever the displayed model has reached the target, so there is no idle
+    // animation -- motion happens only between telemetry values.
+    transitionTimer_->setInterval(16);
+    connect(transitionTimer_, &QTimer::timeout, this,
+            &CpuInstrument::advanceInterpolation);
+}
+
+void CpuInstrument::applySizePolicyForMode() {
+    // The instrument paints at side = min(width, height) of whatever container
+    // it is given, so a stretching layout can inflate it far past its intended
+    // diameter. Small is a supporting quick-glance instrument and must NOT grow
+    // to fill a large column.
+    //
+    // Rather than pinning an immutable pixel size, Small declares an INTENDED
+    // MAXIMUM visual footprint: a maximum size at its size hint, plus a
+    // non-greedy size policy. This prevents the unwanted expansion (the actual
+    // problem) while preserving flexibility the Command Deck will later need --
+    // the instrument may still shrink on smaller displays or in denser layouts,
+    // and a future layout could raise the cap deliberately. It simply will not
+    // expand past its intended footprint on its own.
+    //
+    // Large (and the other larger modes) keep the default, expanding policy so
+    // their sizing behaviour is unchanged.
+    if (mode_ == InstrumentSizeMode::Small) {
+        // Preferred (not Expanding): the widget requests its hint and does not
+        // greedily claim extra space, but remains free to be given less.
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        setMaximumSize(sizeHint());
+    } else {
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        // Clear any maximum a prior Small mode may have set, so the larger
+        // modes are free to occupy their region as before.
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    }
 }
 
 void CpuInstrument::setModel(const CpuInstrumentModel& model) {
-    model_ = model;
+    target_ = model;
+    // Availability changes apply immediately (a value becoming Absent should not
+    // be "eased" -- the placeholder is a discrete state). Only the numeric
+    // values interpolate. If this is the first model (displayed still Absent for
+    // a metric that is now present), snap that metric so it does not sweep up
+    // from zero on first appearance.
+    if (displayed_.utilizationAvailability == ValueAvailability::Absent
+        && target_.utilizationAvailability != ValueAvailability::Absent) {
+        displayed_.utilizationPercent = target_.utilizationPercent;
+    }
+    if (displayed_.temperatureAvailability == ValueAvailability::Absent
+        && target_.temperatureAvailability != ValueAvailability::Absent) {
+        displayed_.temperatureCelsius = target_.temperatureCelsius;
+    }
+    displayed_.utilizationAvailability = target_.utilizationAvailability;
+    displayed_.temperatureAvailability = target_.temperatureAvailability;
+
+    if (interpolationSettled()) {
+        displayed_.utilizationPercent = target_.utilizationPercent;
+        displayed_.temperatureCelsius = target_.temperatureCelsius;
+        update();
+    } else if (!transitionTimer_->isActive()) {
+        transitionTimer_->start();
+    }
+}
+
+bool CpuInstrument::interpolationSettled() const {
+    const double du =
+        std::fabs(displayed_.utilizationPercent - target_.utilizationPercent);
+    const double dt =
+        std::fabs(displayed_.temperatureCelsius - target_.temperatureCelsius);
+    return du < 0.1 && dt < 0.1;
+}
+
+void CpuInstrument::advanceInterpolation() {
+    // Exponential ease toward the target: a fixed fraction of the remaining
+    // distance each tick gives a smooth, framerate-tolerant approach with an
+    // obvious future animation path. No overshoot, no idle motion.
+    constexpr double kEase = 0.22;
+    displayed_.utilizationPercent +=
+        (target_.utilizationPercent - displayed_.utilizationPercent) * kEase;
+    displayed_.temperatureCelsius +=
+        (target_.temperatureCelsius - displayed_.temperatureCelsius) * kEase;
+
+    if (interpolationSettled()) {
+        displayed_.utilizationPercent = target_.utilizationPercent;
+        displayed_.temperatureCelsius = target_.temperatureCelsius;
+        transitionTimer_->stop();
+    }
     update();
 }
 
 void CpuInstrument::setSizeMode(InstrumentSizeMode mode) {
     mode_ = mode;
+    applySizePolicyForMode();
     updateGeometry();
     update();
 }
@@ -403,7 +495,7 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     painter.translate(offsetX, offsetY);
 
     const CpuInstrumentLayout layout = resolveCpuInstrumentLayout(
-        mode_, side, model_.utilizationPercent, model_.temperatureCelsius);
+        mode_, side, displayed_.utilizationPercent, displayed_.temperatureCelsius);
     const AccentPair accents = resolveAccents(state_);
     const double glow = glowStrengthForState(state_);
 
@@ -459,7 +551,7 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
                        accents.temperature, glow);
 
     // --- Layer 3: INFORMATION ------------------------------------------------
-    paintCenterStack(painter, layout, model_, mode_, accents);
+    paintCenterStack(painter, layout, displayed_, mode_, accents);
 
     // Reserved regions (trend band, status gap, per-core annulus) are accounted
     // for in the layout but intentionally not drawn: the composition already

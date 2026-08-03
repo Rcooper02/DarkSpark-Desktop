@@ -9,6 +9,7 @@
 #include "deck/instruments/InstrumentState.hpp"
 
 class QPaintEvent;
+class QTimer;
 
 namespace darkspark::deck::instruments {
 
@@ -50,7 +51,7 @@ public:
     explicit CpuInstrument(InstrumentSizeMode mode, QWidget* parent = nullptr);
 
     void setModel(const CpuInstrumentModel& model);
-    [[nodiscard]] CpuInstrumentModel model() const { return model_; }
+    [[nodiscard]] CpuInstrumentModel model() const { return target_; }
 
     void setSizeMode(InstrumentSizeMode mode);
     [[nodiscard]] InstrumentSizeMode sizeMode() const { return mode_; }
@@ -68,9 +69,22 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
+    void advanceInterpolation();
+    [[nodiscard]] bool interpolationSettled() const;
+    void applySizePolicyForMode();
+
     InstrumentSizeMode mode_;
     InstrumentState state_ = InstrumentState::Idle;
-    CpuInstrumentModel model_{};
+
+    /// The instrument interpolates what it DRAWS toward the latest model it was
+    /// GIVEN, so telemetry updates read as smooth transitions rather than jumps.
+    /// target_ is the most recent model from setModel(); displayed_ is what is
+    /// currently painted and eases toward target_. This is the only motion in
+    /// the instrument: it runs only while a transition is in progress and stops
+    /// when displayed_ reaches target_ (no idle animation).
+    CpuInstrumentModel target_{};
+    CpuInstrumentModel displayed_{};
+    QTimer* transitionTimer_;
 };
 
 }  // namespace darkspark::deck::instruments

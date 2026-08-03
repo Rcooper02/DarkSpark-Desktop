@@ -83,6 +83,8 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/InstrumentSizeMode.hpp
     src/deck/instruments/InstrumentState.hpp
     src/deck/instruments/CpuInstrumentModel.hpp
+    src/deck/instruments/CpuInstrumentModelAdapter.cpp
+    src/deck/instruments/CpuInstrumentModelAdapter.hpp
     src/deck/instruments/CpuInstrumentLayout.cpp
     src/deck/instruments/CpuInstrumentLayout.hpp
     src/deck/instruments/CpuInstrument.cpp
@@ -148,6 +150,23 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-instruments-test
         COMMAND darkspark-instruments-test
+    )
+
+    # Adapter test: Qt-free integration logic (MetricSample -> presentation
+    # model). Separate executable so it has its own main(); compiles MetricSample
+    # and the adapter directly, links no Qt.
+    add_executable(darkspark-instrument-adapter-test
+        tests/deck/instruments/CpuInstrumentModelAdapterTest.cpp
+        src/deck/instruments/CpuInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-instrument-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-instrument-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-instrument-adapter-test
+        COMMAND darkspark-instrument-adapter-test
     )
 
     # Service tests. CpuTelemetryService derives from QObject, so this target

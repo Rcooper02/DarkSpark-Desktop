@@ -153,16 +153,49 @@ void Application::startInstrumentPreview() {
 
     auto* outer = new QVBoxLayout(window.get());
     outer->setContentsMargins(0, 0, 0, 0);
-    outer->addWidget(new deck::instruments::InstrumentPreviewPage(
+    auto* page = new deck::instruments::InstrumentPreviewPage(
         deck::instruments::InstrumentPreviewPage::Layout::SideBySide,
-        window.get()));
+        window.get());
+    outer->addWidget(page);
 
     connect(new QShortcut(QKeySequence(Qt::Key_Escape), window.get()),
             &QShortcut::activated, window.get(), &QWidget::close);
 
+    // Bind live telemetry to the preview using the real pipeline. The preview
+    // route runs its own CPU utilization and thermal providers (independent of
+    // the dashboard's providers_, so the preview is fully self-contained), and
+    // connects each provider's readingChanged to the page, exactly as the deck
+    // path connects providers to the deck window. The page owns the adapter that
+    // turns samples into the instruments' presentation model.
+    auto* utilization = new services::CpuTelemetryService(window.get());
+    auto* thermal = new services::CpuThermalService(window.get());
+    for (interfaces::ITelemetryProvider* provider :
+         {static_cast<interfaces::ITelemetryProvider*>(utilization),
+          static_cast<interfaces::ITelemetryProvider*>(thermal)}) {
+        connect(provider, &interfaces::ITelemetryProvider::readingChanged, page,
+                &deck::instruments::InstrumentPreviewPage::receiveTelemetry);
+        provider->start();
+        // Immediate initialization: prime the page from the providers' current
+        // samples right now, before the window is shown, so the very first
+        // painted frame already reflects real telemetry state rather than a
+        // blank widget. Priming happens for every sensor a provider exposes.
+        //
+        // Note on honesty: the first primed samples are Unavailable by design --
+        // utilization is a rate that needs two reads to produce a value, and
+        // thermal reads values on its first poll -- so the instrument shows its
+        // correct Absent presentation (placeholder, dormant conduit) from frame
+        // zero and then eases into live values as the providers produce them.
+        // We deliberately do not fabricate a frame-zero number. Polling then
+        // continues normally on each provider's timer.
+        const QList<models::MetricSample> primed = provider->currentSamples();
+        for (const models::MetricSample& sample : primed) {
+            page->receiveTelemetry(sample);
+        }
+    }
+
     window->showFullScreen();
     instrumentPreviewWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Instrument Preview mode";
+    qCInfo(lcApp) << "Started in Instrument Preview mode (live telemetry)";
 }
 
 void Application::startTelemetry() {
