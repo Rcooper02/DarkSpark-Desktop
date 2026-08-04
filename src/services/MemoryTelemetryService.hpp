@@ -116,6 +116,8 @@ private:
     QElapsedTimer clock_;
 
     std::optional<double> lastValidValue_;
+    std::optional<models::MetricSample> lastUsedBytes_;
+    std::optional<models::MetricSample> lastTotalBytes_;
     models::MetricSample current_;
 };
 

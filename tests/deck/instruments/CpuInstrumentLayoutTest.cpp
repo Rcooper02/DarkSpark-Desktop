@@ -33,8 +33,11 @@ void test_positional_fraction() {
 }
 
 void test_large_composition() {
+    // The 4th argument is now a pre-computed secondary fraction [0, 1] (the CPU
+    // instrument maps temperature onto it via positionalFraction, tested
+    // separately above). 0.5125 is what a 61 C reading maps to over [20, 100].
     const auto L =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 400.0, 42.0, 61.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 400.0, 42.0, 0.5125);
     CHECK(L.hasInnerRing);
     CHECK(L.temperatureRing.present);
     CHECK(L.utilizationRing.segments == 38);
@@ -42,7 +45,8 @@ void test_large_composition() {
     // Concentric hierarchy: outer bigger and thicker than inner.
     CHECK(L.utilizationRing.outerRadius > L.temperatureRing.outerRadius);
     CHECK(L.utilizationRing.thickness > L.temperatureRing.thickness);
-    // Fills are positional only.
+    // Outer fill is positional from utilization; inner fill is the supplied
+    // secondary fraction passed straight through.
     CHECK(near(L.utilizationRing.fillFraction, 0.42));
     CHECK(near(L.temperatureRing.fillFraction, 0.5125));
     // Responsive primary: min(64, 0.155 * 400 = 62) = 62.
@@ -58,13 +62,13 @@ void test_large_composition() {
 void test_large_responsive_primary_scales_down() {
     // At a smaller square the primary scales with the box: min(64,0.155*200=31).
     const auto L =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 200.0, 42.0, 61.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 200.0, 42.0, 0.5125);
     CHECK(near(L.primaryValuePx, 31.0));
 }
 
 void test_small_composition_is_reduced_not_shrunk() {
     const auto S =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Small, 400.0, 42.0, 61.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Small, 400.0, 42.0, 0.5125);
     // Deliberately reduced: single arc, no inner ring, no trend band.
     CHECK(!S.hasInnerRing);
     CHECK(!S.temperatureRing.present);
@@ -79,20 +83,20 @@ void test_small_composition_is_reduced_not_shrunk() {
 
 void test_medium_wide_fall_back_to_large() {
     const auto M =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Medium, 400.0, 42.0, 61.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Medium, 400.0, 42.0, 0.5125);
     const auto W =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Wide, 400.0, 42.0, 61.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Wide, 400.0, 42.0, 0.5125);
     CHECK(M.hasInnerRing);  // until dedicated compositions exist
     CHECK(W.hasInnerRing);
 }
 
 void test_fill_fraction_edges() {
     const auto zero =
-        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 400.0, 0.0, 20.0);
+        resolveCpuInstrumentLayout(InstrumentSizeMode::Large, 400.0, 0.0, 0.0);
     CHECK(near(zero.utilizationRing.fillFraction, 0.0));
     CHECK(near(zero.temperatureRing.fillFraction, 0.0));
     const auto full = resolveCpuInstrumentLayout(InstrumentSizeMode::Large,
-                                                 400.0, 100.0, 100.0);
+                                                 400.0, 100.0, 1.0);
     CHECK(near(full.utilizationRing.fillFraction, 1.0));
     CHECK(near(full.temperatureRing.fillFraction, 1.0));
 }

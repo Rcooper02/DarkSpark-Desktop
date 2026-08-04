@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include "deck/instruments/InstrumentRenderModel.hpp"
+#include "deck/instruments/CpuInstrumentLayout.hpp"
 #include "deck/instruments/InstrumentRenderer.hpp"
 #include "themes/LegacyTheme.hpp"
 
@@ -133,8 +134,20 @@ void GpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     InstrumentRenderModel rm;
     rm.utilizationPercent = displayed_.utilizationPercent;
     rm.utilizationAvailability = displayed_.utilizationAvailability;
-    rm.temperatureCelsius = displayed_.temperatureCelsius;
-    rm.temperatureAvailability = displayed_.temperatureAvailability;
+    // GPU owns its secondary presentation, identically to CPU: temperature text
+    // with its unit, and the inner-ring fraction from the temperature range.
+    rm.secondaryAvailability = displayed_.temperatureAvailability;
+    if (displayed_.temperatureAvailability != ValueAvailability::Absent) {
+        rm.secondaryText = QString::number(displayed_.temperatureCelsius, 'f', 0)
+                           + QStringLiteral("\u00B0C");
+    } else {
+        // Preserve the exact prior appearance: "--\u00B0C" with the unit.
+        rm.secondaryText = QStringLiteral("--\u00B0C");
+    }
+    rm.secondaryValue = positionalFraction(displayed_.temperatureCelsius,
+                                           layout_constants::kTempSpanLowC,
+                                           layout_constants::kTempSpanHighC);
+    rm.hasSecondaryRing = true;
     rm.title = QStringLiteral("GPU");
     rm.awaitingTelemetry = false;
     rm.mode = mode_;

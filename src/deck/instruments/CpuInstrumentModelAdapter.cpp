@@ -51,6 +51,8 @@ bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
         return true;
     }
     case MetricId::MemoryUtilization:
+    case MetricId::MemoryUsedBytes:
+    case MetricId::MemoryTotalBytes:
         // Not shown by the CPU instrument.
         return false;
     case MetricId::GpuTotalUtilization:

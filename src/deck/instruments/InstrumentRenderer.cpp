@@ -266,39 +266,40 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, text);
     }
 
-    // Secondary line. For a live instrument this is the temperature; for a
-    // temporary shell it is the restrained "Awaiting Telemetry" caption. Both
-    // are subordinate and muted so they never compete with the primary value.
+    // Secondary line. A neutral subordinate reading: the instrument supplies the
+    // fully-formatted text (temperature, memory GB, ...), and this renderer draws
+    // it without knowing what it means. For a shell it is the "Awaiting
+    // Telemetry" caption; when the reading is Absent it is a neutral "--"
+    // placeholder. All are muted so they never compete with the primary value.
     {
         QFont f(mono);
-        const int tempPx =
+        const int secPx =
             (mode == InstrumentSizeMode::Small) ? 12 : LegacyTheme::fontCardSubtitle();
-        f.setPixelSize(awaiting ? std::max(9, tempPx - 2) : tempPx);
+        f.setPixelSize(awaiting ? std::max(9, secPx - 2) : secPx);
         f.setWeight(QFont::Medium);
         if (awaiting) {
             // Slight tracking makes the caption read as a deliberate status line.
             f.setLetterSpacing(QFont::AbsoluteSpacing, 1.0);
         }
         painter.setFont(f);
-        // Subordinate: muted text, not the temperature accent, so the secondary
-        // line does not compete with utilization for the eye. The accent lives
-        // on the ring, where it separates readings without shouting.
+        // Subordinate: muted text, not an accent, so the secondary line does not
+        // compete with utilization for the eye. The accent lives on the ring.
         painter.setPen(LegacyTheme::textSecondary());
-        const QRectF box(0, layout.secondaryY - tempPx, layout.side, tempPx * 1.8);
+        const QRectF box(0, layout.secondaryY - secPx, layout.side, secPx * 1.8);
         QString secondaryText;
         if (awaiting) {
             // A shell awaiting its real instrument: no numbers, just a quiet
             // status caption. The dormant conduits already convey "present but
             // not live".
             secondaryText = QStringLiteral("Awaiting Telemetry");
-        } else if (rm.temperatureAvailability == ValueAvailability::Absent) {
-            // Live instrument with no current package temperature: a restrained
-            // neutral placeholder rather than a fabricated number. Presentation
-            // only; carries no health meaning.
-            secondaryText = QStringLiteral("--\u00B0C");
+        } else if (!rm.secondaryText.isEmpty()) {
+            // The instrument formatted this, units and all -- including its own
+            // absence text (e.g. "--\u00B0C"). The renderer stays unit-neutral.
+            secondaryText = rm.secondaryText;
         } else {
-            secondaryText = QString::number(rm.temperatureCelsius, 'f', 0)
-                            + QStringLiteral("\u00B0C");
+            // The instrument left the secondary empty: a restrained, unit-free
+            // neutral placeholder rather than a fabricated value.
+            secondaryText = QStringLiteral("--");
         }
         painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, secondaryText);
     }
@@ -389,7 +390,7 @@ void paint(QPainter& painter, const QRect& widgetRect,
     painter.translate(widgetRect.x() + offsetX, widgetRect.y() + offsetY);
 
     const CpuInstrumentLayout layout = resolveCpuInstrumentLayout(
-        model.mode, side, model.utilizationPercent, model.temperatureCelsius);
+        model.mode, side, model.utilizationPercent, model.secondaryValue);
 
     renderStructureLayer(painter, layout, model);    // Layer 1
     renderEnergyLayer(painter, layout, model);       // Layer 2

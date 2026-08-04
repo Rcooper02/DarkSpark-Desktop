@@ -33,8 +33,23 @@ struct InstrumentRenderModel {
     double utilizationPercent = 0.0;
     ValueAvailability utilizationAvailability = ValueAvailability::Absent;
 
-    double temperatureCelsius = 0.0;
-    ValueAvailability temperatureAvailability = ValueAvailability::Absent;
+    /// The secondary reading, presented neutrally. The renderer draws
+    /// `secondaryText` verbatim as the subordinate line and does not know what
+    /// it means: each instrument formats its own ("64\u00B0C" for CPU/GPU
+    /// temperature, "12.4 / 32.0 GB" for memory, etc.), including any unit. When
+    /// `secondaryAvailability` is Absent the renderer shows a neutral "--"
+    /// placeholder instead of the text, so no instrument has to encode absence
+    /// formatting. `secondaryValue` in [0, 1] drives the inner conduit fill; it
+    /// is a pure ratio with no unit, so the renderer stays subsystem-agnostic.
+    QString secondaryText;
+    ValueAvailability secondaryAvailability = ValueAvailability::Absent;
+    /// Inner-conduit fill fraction [0, 1] for the secondary reading. Instruments
+    /// map their domain onto this ratio (CPU/GPU map a temperature range; memory
+    /// maps used/total). 0 when there is no meaningful secondary ring.
+    double secondaryValue = 0.0;
+    /// Whether to draw the inner (secondary) conduit at all. CPU/GPU set true
+    /// (temperature ring); an instrument with no second ring sets false.
+    bool hasSecondaryRing = true;
 
     QString title;                       ///< "CPU", "GPU", ...
     bool awaitingTelemetry = false;      ///< dormant shell => "Awaiting Telemetry"

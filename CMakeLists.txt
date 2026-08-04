@@ -98,6 +98,11 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/GpuInstrumentModel.hpp
     src/deck/instruments/GpuInstrumentModelAdapter.cpp
     src/deck/instruments/GpuInstrumentModelAdapter.hpp
+    src/deck/instruments/MemoryInstrument.cpp
+    src/deck/instruments/MemoryInstrument.hpp
+    src/deck/instruments/MemoryInstrumentModel.hpp
+    src/deck/instruments/MemoryInstrumentModelAdapter.cpp
+    src/deck/instruments/MemoryInstrumentModelAdapter.hpp
     src/deck/instruments/InstrumentRenderer.cpp
     src/deck/instruments/InstrumentRenderer.hpp
     src/deck/instruments/InstrumentRenderModel.hpp
@@ -229,6 +234,22 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-gpu-adapter-test
         COMMAND darkspark-gpu-adapter-test
+    )
+
+    # Memory adapter test: pure join/derive/clamp/state logic via injected
+    # MetricSamples. Qt-free (own main()); mirrors the GPU adapter test.
+    add_executable(darkspark-memory-adapter-test
+        tests/deck/instruments/MemoryInstrumentModelAdapterTest.cpp
+        src/deck/instruments/MemoryInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-memory-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-memory-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-memory-adapter-test
+        COMMAND darkspark-memory-adapter-test
     )
 
     # GPU service test: the GPU providers derive from QObject, so this target

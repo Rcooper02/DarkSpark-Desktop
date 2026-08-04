@@ -17,7 +17,8 @@ namespace {
 
 using namespace layout_constants;
 
-CpuInstrumentLayout resolveLarge(double side, double util, double tempC) {
+CpuInstrumentLayout resolveLarge(double side, double util,
+                                 double secondaryFraction) {
     CpuInstrumentLayout l;
     l.side = side;
     l.centerX = side / 2.0;
@@ -34,8 +35,10 @@ CpuInstrumentLayout resolveLarge(double side, double util, double tempC) {
     l.temperatureRing.outerRadius = side * kLargeInnerRadiusFrac;
     l.temperatureRing.thickness = side * kLargeInnerThicknessFrac;
     l.temperatureRing.segments = kLargeInnerSegments;
-    l.temperatureRing.fillFraction =
-        positionalFraction(tempC, kTempSpanLowC, kTempSpanHighC);
+    // The inner ring is filled by a pre-computed [0, 1] fraction supplied by
+    // the instrument, so this shared geometry stays subsystem-agnostic (no
+    // temperature bounds or units here).
+    l.temperatureRing.fillFraction = secondaryFraction;
     l.temperatureRing.present = true;
 
     // Responsive primary value: dominant but never overflowing the square.
@@ -92,16 +95,16 @@ CpuInstrumentLayout resolveSmall(double side, double util) {
 CpuInstrumentLayout resolveCpuInstrumentLayout(InstrumentSizeMode mode,
                                                double side,
                                                double utilizationPercent,
-                                               double temperatureCelsius) {
+                                               double secondaryFraction) {
     switch (mode) {
     case InstrumentSizeMode::Small:
         return resolveSmall(side, utilizationPercent);
     case InstrumentSizeMode::Large:
     case InstrumentSizeMode::Medium:  // fall back to Large until designed
     case InstrumentSizeMode::Wide:    // fall back to Large until designed
-        return resolveLarge(side, utilizationPercent, temperatureCelsius);
+        return resolveLarge(side, utilizationPercent, secondaryFraction);
     }
-    return resolveLarge(side, utilizationPercent, temperatureCelsius);
+    return resolveLarge(side, utilizationPercent, secondaryFraction);
 }
 
 }  // namespace darkspark::deck::instruments

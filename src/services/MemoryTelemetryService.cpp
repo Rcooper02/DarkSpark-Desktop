@@ -137,7 +137,18 @@ void MemoryTelemetryService::stop() {
 }
 
 QList<models::MetricSample> MemoryTelemetryService::currentSamples() const {
-    return {current_};
+    // The utilization sample is always present (Unavailable before the first
+    // poll). The byte samples are included once produced, so the composition
+    // root can prime a Memory instrument's full secondary line from
+    // currentSamples() before the first live tick.
+    QList<models::MetricSample> out{current_};
+    if (lastUsedBytes_.has_value()) {
+        out.append(*lastUsedBytes_);
+    }
+    if (lastTotalBytes_.has_value()) {
+        out.append(*lastTotalBytes_);
+    }
+    return out;
 }
 
 void MemoryTelemetryService::emitSample(const MetricSample& sample) {
@@ -227,6 +238,32 @@ void MemoryTelemetryService::poll() {
     }
 
     lastValidValue_ = percent;
+
+    // Additive: alongside the utilization percentage, emit the raw used/total
+    // byte figures so a subsystem instrument can show "used / total GB" without
+    // recomputing from /proc/meminfo. These are independent samples joined by
+    // the consuming adapter, mirroring how GPU utilization and temperature are
+    // separate samples. /proc/meminfo reports kB; convert to bytes (x1024).
+    // Available memory is intentionally NOT emitted: the adapter derives it
+    // cleanly as total - used from these two trustworthy values. The percentage
+    // emission below is unchanged, so existing consumers (and the card
+    // dashboard) see identical MemoryUtilization behavior.
+    constexpr std::uint64_t kKbToBytes = 1024;
+    const std::uint64_t usedBytes = used * kKbToBytes;
+    const std::uint64_t totalBytes = *total * kKbToBytes;
+    if (const auto usedSample = MetricSample::tryFresh(
+            MetricId::MemoryUsedBytes, static_cast<double>(usedBytes),
+            MetricUnit::Bytes, t)) {
+        lastUsedBytes_ = usedSample;
+        emit readingChanged(*usedSample);
+    }
+    if (const auto totalSample = MetricSample::tryFresh(
+            MetricId::MemoryTotalBytes, static_cast<double>(totalBytes),
+            MetricUnit::Bytes, t)) {
+        lastTotalBytes_ = totalSample;
+        emit readingChanged(*totalSample);
+    }
+
     emitSample(*fresh);
 }
 

@@ -64,10 +64,14 @@ struct CpuInstrumentLayout {
 [[nodiscard]] double positionalFraction(double value, double lo, double hi);
 
 /// Resolve the full layout for a size mode within a square of the given side.
-/// `utilizationPercent` and `temperatureCelsius` set the ring fill fractions.
+/// `utilizationPercent` sets the outer ring fill. `secondaryFraction` is a
+/// pre-computed [0, 1] value the caller derives from its own domain (a
+/// temperature range, a used/total ratio, ...); it sets the inner ring fill.
+/// Keeping this a bare fraction is what lets the geometry stay
+/// subsystem-agnostic -- no units or temperature bounds live here.
 [[nodiscard]] CpuInstrumentLayout resolveCpuInstrumentLayout(
     InstrumentSizeMode mode, double side, double utilizationPercent,
-    double temperatureCelsius);
+    double secondaryFraction);
 
 // --- Named composition constants (future theme-token candidates) ------------
 //

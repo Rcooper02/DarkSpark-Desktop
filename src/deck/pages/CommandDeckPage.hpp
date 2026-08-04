@@ -8,6 +8,7 @@
 namespace darkspark::deck::instruments {
 class CpuInstrument;
 class GpuInstrument;
+class MemoryInstrument;
 }
 
 namespace darkspark::deck::pages {
@@ -61,6 +62,12 @@ public:
         return gpuInstrument_;
     }
 
+    /// The live Memory instrument. Composition creates it; Application binds it
+    /// to memory telemetry, so this page stays telemetry-independent.
+    [[nodiscard]] instruments::MemoryInstrument* memoryInstrument() const {
+        return memoryInstrument_;
+    }
+
 private:
     QWidget* buildStatusRegion();
     QWidget* buildNavigationRegion();
@@ -69,6 +76,7 @@ private:
 
     instruments::CpuInstrument* primaryInstrument_ = nullptr;
     instruments::GpuInstrument* gpuInstrument_ = nullptr;
+    instruments::MemoryInstrument* memoryInstrument_ = nullptr;
     QList<instruments::CpuInstrument*> shellInstruments_;
 };
 

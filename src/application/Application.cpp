@@ -15,6 +15,8 @@
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
 #include "services/CpuThermalService.hpp"
+#include "deck/instruments/MemoryInstrument.hpp"
+#include "deck/instruments/MemoryInstrumentModelAdapter.hpp"
 #include "services/MemoryTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
@@ -295,9 +297,34 @@ void Application::startCommandDeck() {
         }
     }
 
+    // Memory wiring, the third live subsystem, bound with the same reference
+    // pattern: memoryProvider -> memoryAdapter -> page->memoryInstrument(). The
+    // single MemoryTelemetryService emits three joined samples (utilization plus
+    // used/total bytes); the adapter joins them into one model. The page stays
+    // telemetry-independent.
+    auto* memory = page->memoryInstrument();
+    auto memoryAdapter =
+        std::make_shared<deck::instruments::MemoryInstrumentModelAdapter>();
+    auto applyMemorySample =
+        [memoryAdapter, memory](const models::MetricSample& sample) {
+            if (memoryAdapter->apply(sample)) {
+                memory->setModel(memoryAdapter->model());
+            }
+        };
+
+    auto* memoryProvider = new services::MemoryTelemetryService(window.get());
+    connect(memoryProvider, &interfaces::ITelemetryProvider::readingChanged,
+            window.get(), applyMemorySample);
+    memoryProvider->start();
+    const QList<models::MetricSample> memoryPrimed =
+        memoryProvider->currentSamples();
+    for (const models::MetricSample& sample : memoryPrimed) {
+        applyMemorySample(sample);
+    }
+
     window->showFullScreen();
     commandDeckWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU telemetry)";
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory telemetry)";
 }
 
 void Application::startTelemetry() {

@@ -16,10 +16,12 @@ enum class MetricId {
     MemoryUtilization,
     CpuTemperature,
     GpuTotalUtilization,
-    GpuTemperature
+    GpuTemperature,
+    MemoryUsedBytes,
+    MemoryTotalBytes
 };
 
-enum class MetricUnit { Percent, Celsius };
+enum class MetricUnit { Percent, Celsius, Bytes };
 
 /// Data-quality of a reading. This is NOT health: it says whether the value is
 /// current, stale, or absent, and nothing about whether the value is good or

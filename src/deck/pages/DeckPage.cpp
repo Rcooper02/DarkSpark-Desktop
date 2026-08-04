@@ -53,11 +53,15 @@ constexpr int kMaxColumns = 6;
         return nullptr;
     case models::MetricId::GpuTotalUtilization:
     case models::MetricId::GpuTemperature:
+    case models::MetricId::MemoryUsedBytes:
+    case models::MetricId::MemoryTotalBytes:
         // Intentional: GPU metrics have NO card-dashboard mapping. GPU is a
         // Command Deck instrument, not a card on the legacy dashboard. Returning
         // nullptr routes any GPU sample to the safe "no card for this metric"
         // path. Explicit cases (not a default) keep the -Wswitch guarantee that
-        // every new MetricId forces a deliberate decision here.
+        // every new MetricId forces a deliberate decision here. The memory byte
+        // metrics are likewise Command Deck instrument data (the Memory
+        // instrument's secondary line), never legacy cards.
         return nullptr;
     }
     return nullptr;
@@ -95,11 +99,15 @@ struct Thresholds {
         return {1.0e9, 1.0e9};
     case models::MetricId::GpuTotalUtilization:
     case models::MetricId::GpuTemperature:
+    case models::MetricId::MemoryUsedBytes:
+    case models::MetricId::MemoryTotalBytes:
         // Intentional: no GPU thresholds here. Health is the future Health
         // Engine's exclusive concern, never this page's. The unreachable-high
         // sentinel guarantees no escalation is produced even if a GPU sample
         // were routed to a card (it is not -- see cardTitleForMetric). Explicit
-        // cases, not a default, preserve the -Wswitch guarantee.
+        // cases, not a default, preserve the -Wswitch guarantee. The memory byte
+        // metrics are Command Deck instrument data, never cards, so they take
+        // the same sentinel.
         return {1.0e9, 1.0e9};
     }
     return {85.0, 95.0};
@@ -118,6 +126,14 @@ struct Thresholds {
     case models::MetricUnit::Celsius:
         // Degree symbol, no space, per the frozen formatting rule: e.g. 64.0°C.
         return QString::number(value, 'f', 1) + QStringLiteral("\u00B0C");
+    case models::MetricUnit::Bytes:
+        // Byte-valued metrics are Command Deck instrument data (the Memory
+        // instrument's used/total line), never legacy cards -- cardTitleForMetric
+        // routes them to no card, so this branch is not reached in practice. It
+        // exists as the deliberate -Wswitch decision, and formats as binary GB
+        // (GiB) for consistency with the Memory instrument if ever surfaced.
+        return QString::number(value / (1024.0 * 1024.0 * 1024.0), 'f', 1)
+               + QStringLiteral(" GB");
     }
     return QString::number(value, 'f', 1);
 }

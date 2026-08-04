@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QString>
 
+#include "deck/instruments/CpuInstrumentLayout.hpp"
 #include "deck/instruments/InstrumentRenderer.hpp"
 #include "deck/instruments/InstrumentRenderModel.hpp"
 #include "themes/LegacyTheme.hpp"
@@ -171,8 +172,23 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     InstrumentRenderModel rm;
     rm.utilizationPercent = displayed_.utilizationPercent;
     rm.utilizationAvailability = displayed_.utilizationAvailability;
-    rm.temperatureCelsius = displayed_.temperatureCelsius;
-    rm.temperatureAvailability = displayed_.temperatureAvailability;
+    // CPU owns its secondary presentation: the temperature text (with its unit)
+    // and the inner-ring fraction mapped from the temperature range. This
+    // reproduces exactly what the renderer used to do for temperature, now that
+    // the renderer is subsystem-neutral.
+    rm.secondaryAvailability = displayed_.temperatureAvailability;
+    if (displayed_.temperatureAvailability != ValueAvailability::Absent) {
+        rm.secondaryText = QString::number(displayed_.temperatureCelsius, 'f', 0)
+                           + QStringLiteral("\u00B0C");
+    } else {
+        // Preserve the exact prior appearance: an unavailable temperature reads
+        // "--\u00B0C", with the unit, not a bare "--". CPU owns this text.
+        rm.secondaryText = QStringLiteral("--\u00B0C");
+    }
+    rm.secondaryValue = positionalFraction(displayed_.temperatureCelsius,
+                                           layout_constants::kTempSpanLowC,
+                                           layout_constants::kTempSpanHighC);
+    rm.hasSecondaryRing = true;
     rm.title = title_;
     rm.awaitingTelemetry = awaitingTelemetry_;
     rm.mode = mode_;

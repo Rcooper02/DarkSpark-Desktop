@@ -31,6 +31,7 @@
 using darkspark::models::MetricId;
 using darkspark::models::MetricSample;
 using darkspark::models::MetricState;
+using darkspark::models::MetricUnit;
 using darkspark::models::MonotonicTimestamp;
 using darkspark::services::CpuTelemetryService;
 using darkspark::services::detail::TelemetrySources;
@@ -544,6 +545,29 @@ public:
                 [this](const MetricSample& s) { samples.push_back(s); });
     }
     std::vector<MetricSample> samples;
+
+    // The service now emits multiple metrics per successful poll (utilization
+    // plus the additive used/total byte figures). Tests must locate samples by
+    // MetricId rather than by emission order or count. These helpers return the
+    // samples for one metric, and the latest such sample, so assertions stay
+    // robust to how many other metrics were emitted alongside.
+    [[nodiscard]] std::vector<MetricSample> forId(MetricId id) const {
+        std::vector<MetricSample> out;
+        for (const MetricSample& s : samples) {
+            if (s.id() == id) out.push_back(s);
+        }
+        return out;
+    }
+    [[nodiscard]] std::optional<MetricSample> latest(MetricId id) const {
+        std::optional<MetricSample> found;
+        for (const MetricSample& s : samples) {
+            if (s.id() == id) found = s;
+        }
+        return found;
+    }
+    [[nodiscard]] std::size_t countFor(MetricId id) const {
+        return forId(id).size();
+    }
 };
 
 void driveMemoryPoll(MemoryTelemetryService* service) {
@@ -565,13 +589,35 @@ void test_memory_first_valid_read_is_fresh_immediately() {
 
     driveMemoryPoll(service);
 
-    // Unlike CPU, there is no baseline warm-up: the first valid read is usable.
-    CHECK(collector.samples.size() == 1);
-    if (collector.samples.empty()) return;
-    CHECK(collector.samples[0].state() == MetricState::Fresh);
-    CHECK(collector.samples[0].id() == MetricId::MemoryUtilization);
-    if (collector.samples[0].value()) {
-        CHECK(*collector.samples[0].value() == 60.0);
+    // The additive contract: a successful poll emits utilization AND the used/
+    // total byte figures. Validate each metric independently, located by
+    // MetricId rather than by emission order or total count.
+    const auto util = collector.latest(MetricId::MemoryUtilization);
+    CHECK(util.has_value());
+    if (util) {
+        // Unlike CPU, there is no baseline warm-up: the first valid read is
+        // usable and Fresh immediately.
+        CHECK(util->state() == MetricState::Fresh);
+        CHECK(util->unit() == MetricUnit::Percent);
+        if (util->value()) CHECK(*util->value() == 60.0);
+    }
+
+    // used = (total - available) kB * 1024 = (1000 - 400) * 1024 bytes.
+    const auto used = collector.latest(MetricId::MemoryUsedBytes);
+    CHECK(used.has_value());
+    if (used) {
+        CHECK(used->state() == MetricState::Fresh);
+        CHECK(used->unit() == MetricUnit::Bytes);
+        if (used->value()) CHECK(*used->value() == 600.0 * 1024.0);
+    }
+
+    // total = 1000 kB * 1024 bytes.
+    const auto total = collector.latest(MetricId::MemoryTotalBytes);
+    CHECK(total.has_value());
+    if (total) {
+        CHECK(total->state() == MetricState::Fresh);
+        CHECK(total->unit() == MetricUnit::Bytes);
+        if (total->value()) CHECK(*total->value() == 1000.0 * 1024.0);
     }
 }
 
@@ -586,9 +632,13 @@ void test_memory_boundaries() {
     driveMemoryPoll(service);
     driveMemoryPoll(service);
 
-    if (collector.samples.size() < 2) { CHECK(false); return; }
-    if (collector.samples[0].value()) CHECK(*collector.samples[0].value() == 0.0);
-    if (collector.samples[1].value()) CHECK(*collector.samples[1].value() == 100.0);
+    // Locate the utilization samples specifically; the byte metrics emitted
+    // alongside must not affect which sample is the first vs second poll's
+    // utilization. Two polls -> two utilization samples, in order.
+    const auto utils = collector.forId(MetricId::MemoryUtilization);
+    if (utils.size() < 2) { CHECK(false); return; }
+    if (utils[0].value()) CHECK(*utils[0].value() == 0.0);
+    if (utils[1].value()) CHECK(*utils[1].value() == 100.0);
 }
 
 void test_memory_total_missing_is_failure() {
@@ -600,8 +650,14 @@ void test_memory_total_missing_is_failure() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    // A failed poll emits only the utilization metric (no byte samples), as
+    // Unavailable. Locate it by id rather than assuming it is samples[0].
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) CHECK(u->state() == MetricState::Unavailable);
+    // No byte samples are emitted on a failed poll.
+    CHECK(collector.countFor(MetricId::MemoryUsedBytes) == 0);
+    CHECK(collector.countFor(MetricId::MemoryTotalBytes) == 0);
 }
 
 void test_memory_available_missing_is_failure_no_fallback() {
@@ -614,9 +670,12 @@ void test_memory_available_missing_is_failure_no_fallback() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
-    CHECK(!collector.samples[0].value().has_value());
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) {
+        CHECK(u->state() == MetricState::Unavailable);
+        CHECK(!u->value().has_value());
+    }
 }
 
 void test_memory_non_numeric_is_failure() {
@@ -628,8 +687,9 @@ void test_memory_non_numeric_is_failure() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) CHECK(u->state() == MetricState::Unavailable);
 }
 
 void test_memory_zero_total_is_failure() {
@@ -641,8 +701,9 @@ void test_memory_zero_total_is_failure() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) CHECK(u->state() == MetricState::Unavailable);
 }
 
 void test_memory_available_exceeds_total_is_failure() {
@@ -654,8 +715,12 @@ void test_memory_available_exceeds_total_is_failure() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) CHECK(u->state() == MetricState::Unavailable);
+    // Impossible input (available > total) must not emit byte samples.
+    CHECK(collector.countFor(MetricId::MemoryUsedBytes) == 0);
+    CHECK(collector.countFor(MetricId::MemoryTotalBytes) == 0);
 }
 
 void test_memory_read_failure_without_prior_value_is_unavailable() {
@@ -666,9 +731,12 @@ void test_memory_read_failure_without_prior_value_is_unavailable() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Unavailable);
-    CHECK(!collector.samples[0].value().has_value());
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) {
+        CHECK(u->state() == MetricState::Unavailable);
+        CHECK(!u->value().has_value());
+    }
 }
 
 void test_memory_failure_after_valid_value_is_stale() {
@@ -682,10 +750,14 @@ void test_memory_failure_after_valid_value_is_stale() {
     driveMemoryPoll(service);
     driveMemoryPoll(service);
 
-    if (collector.samples.size() < 2) { CHECK(false); return; }
-    CHECK(collector.samples[1].state() == MetricState::Stale);
-    if (collector.samples[1].value()) {
-        CHECK(*collector.samples[1].value() == 60.0);
+    // The second poll's utilization must be Stale, retaining the last value.
+    // Locate utilization samples by id: the failed poll emits no byte samples,
+    // so index-based access would otherwise misalign.
+    const auto utils = collector.forId(MetricId::MemoryUtilization);
+    if (utils.size() < 2) { CHECK(false); return; }
+    CHECK(utils[1].state() == MetricState::Stale);
+    if (utils[1].value()) {
+        CHECK(*utils[1].value() == 60.0);
     }
 }
 
@@ -702,12 +774,16 @@ void test_memory_recovery_is_fresh_immediately() {
     driveMemoryPoll(service);
     driveMemoryPoll(service);
 
-    if (collector.samples.size() < 3) { CHECK(false); return; }
-    CHECK(collector.samples[1].state() == MetricState::Stale);
+    // Three polls; the middle is Stale (read failure), the third recovers to
+    // Fresh with no Unavailable re-baseline. Located by id so the byte samples
+    // emitted on the Fresh polls do not shift indices.
+    const auto utils = collector.forId(MetricId::MemoryUtilization);
+    if (utils.size() < 3) { CHECK(false); return; }
+    CHECK(utils[1].state() == MetricState::Stale);
     // Contrast with CPU: no Unavailable re-baseline step is required.
-    CHECK(collector.samples[2].state() == MetricState::Fresh);
-    if (collector.samples[2].value()) {
-        CHECK(*collector.samples[2].value() == 75.0);
+    CHECK(utils[2].state() == MetricState::Fresh);
+    if (utils[2].value()) {
+        CHECK(*utils[2].value() == 75.0);
     }
 }
 
@@ -722,10 +798,11 @@ void test_memory_unknown_keys_ignored() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Fresh);
-    if (collector.samples[0].value()) {
-        CHECK(*collector.samples[0].value() == 60.0);
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) {
+        CHECK(u->state() == MetricState::Fresh);
+        if (u->value()) CHECK(*u->value() == 60.0);
     }
 }
 
@@ -738,10 +815,23 @@ void test_memory_large_values_without_overflow() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].state() == MetricState::Fresh);
-    if (collector.samples[0].value()) {
-        CHECK(*collector.samples[0].value() == 75.0);
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) {
+        CHECK(u->state() == MetricState::Fresh);
+        if (u->value()) CHECK(*u->value() == 75.0);
+    }
+    // The additive byte metrics carry the large values in bytes without
+    // overflow: total = 1e12 kB * 1024, used = (1e12 - 250e9) kB * 1024.
+    const auto total = collector.latest(MetricId::MemoryTotalBytes);
+    CHECK(total.has_value());
+    if (total && total->value()) {
+        CHECK(*total->value() == 1000000000000.0 * 1024.0);
+    }
+    const auto used = collector.latest(MetricId::MemoryUsedBytes);
+    CHECK(used.has_value());
+    if (used && used->value()) {
+        CHECK(*used->value() == 750000000000.0 * 1024.0);
     }
 }
 
@@ -757,6 +847,29 @@ void test_memory_current_sample_before_start_is_unavailable() {
     CHECK(s.state() == MetricState::Unavailable);
     CHECK(!s.value().has_value());
     CHECK(s.id() == MetricId::MemoryUtilization);
+}
+
+void test_memory_current_samples_include_bytes_after_poll() {
+    // The priming contract: once a successful poll has produced the byte
+    // figures, currentSamples() exposes all three metrics so the composition
+    // root can prime a Memory instrument's full secondary line before the first
+    // live signal. Located by id, not by position.
+    QObject owner;
+    ScriptedMeminfo script;
+    script.push(meminfo(1000, 400));
+    auto* service = makeMemoryService(script, owner);
+    driveMemoryPoll(service);
+
+    const QList<MetricSample> primed = service->currentSamples();
+    auto has = [&](MetricId id) {
+        for (const MetricSample& s : primed) {
+            if (s.id() == id) return true;
+        }
+        return false;
+    };
+    CHECK(has(MetricId::MemoryUtilization));
+    CHECK(has(MetricId::MemoryUsedBytes));
+    CHECK(has(MetricId::MemoryTotalBytes));
 }
 
 void test_memory_start_stop_idempotence() {
@@ -786,8 +899,11 @@ void test_memory_timestamp_carry() {
 
     driveMemoryPoll(service);
 
-    if (collector.samples.empty()) { CHECK(false); return; }
-    CHECK(collector.samples[0].timestamp() > 0);
+    // Locate the utilization sample by id; all metrics from one poll share the
+    // same monotonic timestamp, which must be carried through as positive.
+    const auto u = collector.latest(MetricId::MemoryUtilization);
+    CHECK(u.has_value());
+    if (u) CHECK(u->timestamp() > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1341,6 +1457,7 @@ int main(int argc, char** argv) {
     test_memory_unknown_keys_ignored();
     test_memory_large_values_without_overflow();
     test_memory_current_sample_before_start_is_unavailable();
+    test_memory_current_samples_include_bytes_after_poll();
     test_memory_start_stop_idempotence();
     test_memory_timestamp_carry();
 
