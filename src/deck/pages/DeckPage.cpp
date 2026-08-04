@@ -51,6 +51,14 @@ constexpr int kMaxColumns = 6;
         // whenever a new MetricId is added. A default branch would silently
         // absorb future sensors and defeat that guarantee.
         return nullptr;
+    case models::MetricId::GpuTotalUtilization:
+    case models::MetricId::GpuTemperature:
+        // Intentional: GPU metrics have NO card-dashboard mapping. GPU is a
+        // Command Deck instrument, not a card on the legacy dashboard. Returning
+        // nullptr routes any GPU sample to the safe "no card for this metric"
+        // path. Explicit cases (not a default) keep the -Wswitch guarantee that
+        // every new MetricId forces a deliberate decision here.
+        return nullptr;
     }
     return nullptr;
 }
@@ -84,6 +92,14 @@ struct Thresholds {
         // Explicit case, not a default branch, so -Wswitch forces a deliberate
         // decision when the next MetricId is added rather than silently
         // inheriting these values.
+        return {1.0e9, 1.0e9};
+    case models::MetricId::GpuTotalUtilization:
+    case models::MetricId::GpuTemperature:
+        // Intentional: no GPU thresholds here. Health is the future Health
+        // Engine's exclusive concern, never this page's. The unreachable-high
+        // sentinel guarantees no escalation is produced even if a GPU sample
+        // were routed to a card (it is not -- see cardTitleForMetric). Explicit
+        // cases, not a default, preserve the -Wswitch guarantee.
         return {1.0e9, 1.0e9};
     }
     return {85.0, 95.0};

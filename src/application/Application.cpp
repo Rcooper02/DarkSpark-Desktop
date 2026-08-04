@@ -5,6 +5,10 @@
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/CpuInstrumentModelAdapter.hpp"
 #include "deck/instruments/InstrumentPreviewPage.hpp"
+#include "deck/instruments/GpuInstrument.hpp"
+#include "deck/instruments/GpuInstrumentModelAdapter.hpp"
+#include "services/GpuTelemetryService.hpp"
+#include "services/GpuThermalService.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
@@ -262,9 +266,38 @@ void Application::startCommandDeck() {
         }
     }
 
+    // GPU wiring, the second live subsystem, bound exactly like CPU from the
+    // composition root: gpuProvider -> gpuAdapter -> page->gpuInstrument().
+    // GPU has its own providers, its own adapter, and its own instrument type;
+    // the page stays telemetry-independent. This is the reference pattern for
+    // every future subsystem.
+    auto* gpu = page->gpuInstrument();
+    auto gpuAdapter =
+        std::make_shared<deck::instruments::GpuInstrumentModelAdapter>();
+    auto applyGpuSample =
+        [gpuAdapter, gpu](const models::MetricSample& sample) {
+            if (gpuAdapter->apply(sample)) {
+                gpu->setModel(gpuAdapter->model());
+            }
+        };
+
+    auto* gpuUtil = new services::GpuTelemetryService(window.get());
+    auto* gpuThermal = new services::GpuThermalService(window.get());
+    for (interfaces::ITelemetryProvider* provider :
+         {static_cast<interfaces::ITelemetryProvider*>(gpuUtil),
+          static_cast<interfaces::ITelemetryProvider*>(gpuThermal)}) {
+        connect(provider, &interfaces::ITelemetryProvider::readingChanged,
+                window.get(), applyGpuSample);
+        provider->start();
+        const QList<models::MetricSample> primed = provider->currentSamples();
+        for (const models::MetricSample& sample : primed) {
+            applyGpuSample(sample);
+        }
+    }
+
     window->showFullScreen();
     commandDeckWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Command Deck mode (live CPU telemetry)";
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU telemetry)";
 }
 
 void Application::startTelemetry() {

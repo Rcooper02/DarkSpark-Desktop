@@ -11,7 +11,13 @@ namespace darkspark::models {
 /// stable sub-key, not by adding an enumerator per sensor. This is what lets the
 /// identity scale to GPU, cooling, storage, and remote sources without the enum
 /// exploding.
-enum class MetricId { CpuTotalUtilization, MemoryUtilization, CpuTemperature };
+enum class MetricId {
+    CpuTotalUtilization,
+    MemoryUtilization,
+    CpuTemperature,
+    GpuTotalUtilization,
+    GpuTemperature
+};
 
 enum class MetricUnit { Percent, Celsius };
 

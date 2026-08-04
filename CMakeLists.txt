@@ -70,6 +70,12 @@ qt_add_executable(darkspark-desktop
     src/services/HwmonDiscovery.hpp
     src/services/CpuThermalService.cpp
     src/services/CpuThermalService.hpp
+    src/services/GpuTelemetryService.cpp
+    src/services/GpuTelemetryService.hpp
+    src/services/GpuThermalService.cpp
+    src/services/GpuThermalService.hpp
+    src/services/GpuDeviceSelector.cpp
+    src/services/GpuDeviceSelector.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -87,6 +93,14 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/CpuInstrumentModel.hpp
     src/deck/instruments/CpuInstrumentModelAdapter.cpp
     src/deck/instruments/CpuInstrumentModelAdapter.hpp
+    src/deck/instruments/GpuInstrument.cpp
+    src/deck/instruments/GpuInstrument.hpp
+    src/deck/instruments/GpuInstrumentModel.hpp
+    src/deck/instruments/GpuInstrumentModelAdapter.cpp
+    src/deck/instruments/GpuInstrumentModelAdapter.hpp
+    src/deck/instruments/InstrumentRenderer.cpp
+    src/deck/instruments/InstrumentRenderer.hpp
+    src/deck/instruments/InstrumentRenderModel.hpp
     src/deck/instruments/CpuInstrumentLayout.cpp
     src/deck/instruments/CpuInstrumentLayout.hpp
     src/deck/instruments/CpuInstrument.cpp
@@ -200,5 +214,60 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-services-test
         COMMAND darkspark-services-test
+    )
+
+    # GPU adapter test: Qt-free, its own executable (own main()).
+    add_executable(darkspark-gpu-adapter-test
+        tests/deck/instruments/GpuInstrumentModelAdapterTest.cpp
+        src/deck/instruments/GpuInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-gpu-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-gpu-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-gpu-adapter-test
+        COMMAND darkspark-gpu-adapter-test
+    )
+
+    # GPU service test: the GPU providers derive from QObject, so this target
+    # links Qt6::Core. Driven through the injected-source seams. Own main().
+    add_executable(darkspark-gpu-service-test
+        tests/services/GpuTelemetryServiceTest.cpp
+        src/services/GpuTelemetryService.cpp
+        src/services/GpuTelemetryService.hpp
+        src/services/GpuThermalService.cpp
+        src/services/GpuThermalService.hpp
+        src/services/GpuDeviceSelector.cpp
+        src/services/GpuDeviceSelector.hpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-gpu-service-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-gpu-service-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-gpu-service-test
+        COMMAND darkspark-gpu-service-test
+    )
+
+    # GPU device-selection test: pure selection rule via injected candidate
+    # lists. Links Qt6::Core (QString). Own main().
+    add_executable(darkspark-gpu-selector-test
+        tests/services/GpuDeviceSelectorTest.cpp
+        src/services/GpuDeviceSelector.cpp
+        src/services/GpuDeviceSelector.hpp
+    )
+    target_include_directories(darkspark-gpu-selector-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-gpu-selector-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-gpu-selector-test
+        COMMAND darkspark-gpu-selector-test
     )
 endif()

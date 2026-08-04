@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "deck/instruments/CpuInstrumentModelAdapter.hpp"
+#include "deck/instruments/GpuInstrumentModelAdapter.hpp"
 
 #include <algorithm>
 
@@ -9,7 +9,7 @@ using models::MetricId;
 using models::MetricSample;
 using models::MetricState;
 
-ValueAvailability CpuInstrumentModelAdapter::availabilityFor(MetricState state) {
+ValueAvailability GpuInstrumentModelAdapter::availabilityFor(MetricState state) {
     switch (state) {
     case MetricState::Fresh:
         return ValueAvailability::Live;
@@ -21,9 +21,9 @@ ValueAvailability CpuInstrumentModelAdapter::availabilityFor(MetricState state) 
     return ValueAvailability::Absent;
 }
 
-bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
+bool GpuInstrumentModelAdapter::apply(const MetricSample& sample) {
     switch (sample.id()) {
-    case MetricId::CpuTotalUtilization: {
+    case MetricId::GpuTotalUtilization: {
         const ValueAvailability avail = availabilityFor(sample.state());
         double pct = model_.utilizationPercent;
         if (sample.value().has_value()) {
@@ -31,16 +31,14 @@ bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
             // rather than trusting the source blindly.
             pct = std::clamp(sample.value().value(), 0.0, 100.0);
         }
-        // On Absent with no value, keep the last numeric value but mark Absent
-        // so the instrument shows a placeholder without losing history.
         model_.utilizationPercent = pct;
         model_.utilizationAvailability = avail;
         return true;
     }
-    case MetricId::CpuTemperature: {
-        // Only the package sensor drives the instrument's temperature. CCD
-        // samples (other keys) are intentionally ignored in this milestone.
-        if (sample.sensorKey() != kPackageKey) {
+    case MetricId::GpuTemperature: {
+        // Only the primary GPU temperature sensor drives the instrument. Any
+        // other GPU temperature key (a non-primary label) is ignored here.
+        if (sample.sensorKey() != kPrimaryTempKey) {
             return false;
         }
         const ValueAvailability avail = availabilityFor(sample.state());
@@ -50,14 +48,11 @@ bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
         model_.temperatureAvailability = avail;
         return true;
     }
+    case MetricId::CpuTotalUtilization:
+    case MetricId::CpuTemperature:
     case MetricId::MemoryUtilization:
-        // Not shown by the CPU instrument.
-        return false;
-    case MetricId::GpuTotalUtilization:
-    case MetricId::GpuTemperature:
-        // GPU metrics are handled by the GPU adapter, never the CPU one. Ignored
-        // here so a shared telemetry stream does not disturb the CPU instrument.
-        // Explicit cases (not a default) preserve the -Wswitch guarantee.
+        // Not shown by the GPU instrument. Explicit cases (not a default)
+        // preserve the -Wswitch guarantee.
         return false;
     }
     return false;

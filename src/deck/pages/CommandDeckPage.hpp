@@ -7,6 +7,7 @@
 
 namespace darkspark::deck::instruments {
 class CpuInstrument;
+class GpuInstrument;
 }
 
 namespace darkspark::deck::pages {
@@ -52,6 +53,14 @@ public:
         return primaryInstrument_;
     }
 
+    /// The live GPU instrument in the secondary region. Exposed for the same
+    /// reason as the primary: the composition root binds GPU telemetry to it,
+    /// while the page itself stays free of telemetry types. Never null after
+    /// construction.
+    [[nodiscard]] instruments::GpuInstrument* gpuInstrument() const {
+        return gpuInstrument_;
+    }
+
 private:
     QWidget* buildStatusRegion();
     QWidget* buildNavigationRegion();
@@ -59,6 +68,7 @@ private:
     QWidget* buildSecondaryRegion();
 
     instruments::CpuInstrument* primaryInstrument_ = nullptr;
+    instruments::GpuInstrument* gpuInstrument_ = nullptr;
     QList<instruments::CpuInstrument*> shellInstruments_;
 };
 

@@ -6,12 +6,14 @@
 #include <QVBoxLayout>
 
 #include "deck/instruments/CpuInstrument.hpp"
+#include "deck/instruments/GpuInstrument.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "themes/LegacyTheme.hpp"
 
 namespace darkspark::deck::pages {
 
 using instruments::CpuInstrument;
+using instruments::GpuInstrument;
 using instruments::InstrumentSizeMode;
 
 namespace {
@@ -19,11 +21,6 @@ namespace {
 /// Height of the reserved Status/Navigation strips. Kept thin and quiet: they
 /// exist to reserve the region, not to fill space.
 constexpr int kReservedStripHeight = 44;
-
-/// The subsystem shells shown in the secondary region, in grid order:
-/// row 0 -> GPU, Memory, Cooling; row 1 -> Network, Storage, (empty).
-constexpr const char* kShellTitles[] = {"GPU",     "Memory",  "Cooling",
-                                        "Network", "Storage"};
 
 }  // namespace
 
@@ -106,18 +103,35 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
 
     // Explicit (row, col) placement. Row 0: GPU(0,0) Memory(0,1) Cooling(0,2).
     // Row 1: Network(1,0) Storage(1,1). Slot (1,2) is never populated.
-    const int positions[5][2] = {{0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}};
-    for (int i = 0; i < 5; ++i) {
+    //
+    // The GPU slot now hosts the live GpuInstrument (its own class); the other
+    // four remain temporary CpuInstrument shells awaiting their real subsystem
+    // instruments. The live GPU is created here (composition) but bound to
+    // telemetry outside the page (Application), so the page stays
+    // telemetry-independent.
+    gpuInstrument_ = new GpuInstrument(InstrumentSizeMode::Small, region);
+    grid->addWidget(gpuInstrument_, 0, 0, Qt::AlignCenter);
+
+    // Remaining shells, placed after the GPU slot: Memory, Cooling, Network,
+    // Storage. GPU is intentionally skipped here since it is now live.
+    struct ShellPlacement {
+        const char* title;
+        int row;
+        int col;
+    };
+    static const ShellPlacement kShells[] = {
+        {"Memory", 0, 1}, {"Cooling", 0, 2}, {"Network", 1, 0},
+        {"Storage", 1, 1}};
+    for (const ShellPlacement& s : kShells) {
         auto* shell = new CpuInstrument(InstrumentSizeMode::Small, region);
-        shell->setTitle(QString::fromUtf8(kShellTitles[i]));
+        shell->setTitle(QString::fromUtf8(s.title));
         // A shell: dormant conduits (all-Absent model) plus the "Awaiting
         // Telemetry" caption. No telemetry is ever bound to these. Each Small
         // shell is centered within its own grid cell (the validated maximum-cap
         // sizing keeps it at its intended footprint).
         shell->setAwaitingTelemetry(true);
         shellInstruments_.append(shell);
-        grid->addWidget(shell, positions[i][0], positions[i][1],
-                        Qt::AlignCenter);
+        grid->addWidget(shell, s.row, s.col, Qt::AlignCenter);
     }
     // Keep all three columns and both rows evenly weighted so the empty
     // bottom-right slot holds its place rather than collapsing, and the grid is
