@@ -19,8 +19,11 @@
 #include "deck/instruments/MemoryInstrumentModelAdapter.hpp"
 #include "deck/instruments/CoolingInstrument.hpp"
 #include "deck/instruments/CoolingInstrumentModelAdapter.hpp"
+#include "deck/instruments/StorageInstrument.hpp"
+#include "deck/instruments/StorageInstrumentModelAdapter.hpp"
 #include "services/MemoryTelemetryService.hpp"
 #include "services/CoolingTelemetryService.hpp"
+#include "services/StorageTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -350,9 +353,34 @@ void Application::startCommandDeck() {
         applyCoolingSample(sample);
     }
 
+    // Storage wiring, the fifth live subsystem: storageProvider -> storageAdapter
+    // -> page->storageInstrument(). The service aggregates filesystem/NVMe/
+    // diskstats providers, applies the selection policies, and emits six
+    // role-based samples; the adapter joins them (retaining temperature and
+    // throughput even though the V1 face shows only utilization + used/total).
+    auto* storage = page->storageInstrument();
+    auto storageAdapter =
+        std::make_shared<deck::instruments::StorageInstrumentModelAdapter>();
+    auto applyStorageSample =
+        [storageAdapter, storage](const models::MetricSample& sample) {
+            if (storageAdapter->apply(sample)) {
+                storage->setModel(storageAdapter->model());
+            }
+        };
+
+    auto* storageProvider = new services::StorageTelemetryService(window.get());
+    connect(storageProvider, &interfaces::ITelemetryProvider::readingChanged,
+            window.get(), applyStorageSample);
+    storageProvider->start();
+    const QList<models::MetricSample> storagePrimed =
+        storageProvider->currentSamples();
+    for (const models::MetricSample& sample : storagePrimed) {
+        applyStorageSample(sample);
+    }
+
     window->showFullScreen();
     commandDeckWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory + Cooling telemetry)";
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory + Cooling + Storage telemetry)";
 }
 
 void Application::startTelemetry() {

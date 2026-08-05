@@ -10,31 +10,9 @@
 #include <optional>
 #include <vector>
 
-namespace darkspark::services {
+#include "services/SensorMetadata.hpp"
 
-/// Provider-independent description of a sensor's identity and capabilities.
-///
-/// This belongs ENTIRELY to the provider layer: a provider (hwmon today;
-/// liquidctl, lm-sensors, vendor APIs, or a future Windows/cloud provider later)
-/// fills it in from its native representation. Consumers (CoolingTelemetryService)
-/// only READ it -- for discovery logging, stable selection, and diagnostics --
-/// and never modify it. Wrapping the fields in one struct keeps the provider
-/// contract clean and makes future expansion painless (add a field here, no
-/// signature churn).
-///
-/// Cooling V1 populates only what hwmon can supply (label, stableId, devicePath);
-/// the remaining fields exist so future providers and future Health Engine /
-/// diagnostics work can carry manufacturer, model, firmware, and capability
-/// hints without a contract change. They are not consumed today.
-struct SensorMetadata {
-    QString manufacturer;      ///< e.g. "NZXT", "ASUS"; empty if unknown
-    QString model;             ///< e.g. "Kraken X63"; empty if unknown
-    QString label;             ///< human sensor label, e.g. "CPU FAN", "pump"
-    QString stableId;          ///< stable identity, e.g. "nct6798:fan1" (NOT hwmonN)
-    QString devicePath;        ///< transport path, e.g. a /sys or bus path
-    QString firmware;          ///< firmware version if a provider exposes it
-    QStringList capabilities;  ///< capability hints, e.g. "rpm", "pwm", "control"
-};
+namespace darkspark::services {
 
 /// The role a discovered cooling sensor plays. A provider assigns a role HINT;
 /// the service's selection turns hints into the logical primary/secondary.

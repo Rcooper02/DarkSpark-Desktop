@@ -114,6 +114,22 @@ qt_add_executable(darkspark-desktop
     src/services/HwmonCoolingProvider.hpp
     src/services/CoolingTelemetryService.cpp
     src/services/CoolingTelemetryService.hpp
+    src/services/SensorMetadata.hpp
+    src/services/StorageSensorProvider.hpp
+    src/services/ThroughputRateCalculator.hpp
+    src/services/FilesystemProvider.cpp
+    src/services/FilesystemProvider.hpp
+    src/services/NVMeProvider.cpp
+    src/services/NVMeProvider.hpp
+    src/services/DiskStatsProvider.cpp
+    src/services/DiskStatsProvider.hpp
+    src/services/StorageTelemetryService.cpp
+    src/services/StorageTelemetryService.hpp
+    src/deck/instruments/StorageInstrument.cpp
+    src/deck/instruments/StorageInstrument.hpp
+    src/deck/instruments/StorageInstrumentModel.hpp
+    src/deck/instruments/StorageInstrumentModelAdapter.cpp
+    src/deck/instruments/StorageInstrumentModelAdapter.hpp
     src/deck/instruments/InstrumentRenderer.cpp
     src/deck/instruments/InstrumentRenderer.hpp
     src/deck/instruments/InstrumentRenderModel.hpp
@@ -313,6 +329,59 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-cooling-service-test
         COMMAND darkspark-cooling-service-test
+    )
+
+    # Storage adapter test: joins all six metrics, retains temp/throughput,
+    # ignores unrelated. Qt-free.
+    add_executable(darkspark-storage-adapter-test
+        tests/deck/instruments/StorageInstrumentModelAdapterTest.cpp
+        src/deck/instruments/StorageInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-storage-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-storage-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-storage-adapter-test
+        COMMAND darkspark-storage-adapter-test
+    )
+
+    # Storage rate-calculator test: first=Unavailable, correct rate, counter
+    # reset, elapsed-time validation. Qt-free.
+    add_executable(darkspark-storage-ratecalc-test
+        tests/services/ThroughputRateCalculatorTest.cpp
+    )
+    target_include_directories(darkspark-storage-ratecalc-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-storage-ratecalc-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-storage-ratecalc-test
+        COMMAND darkspark-storage-ratecalc-test
+    )
+
+    # Storage service test: provider aggregation, filesystem + disk selection
+    # policies, Fresh/Stale/Unavailable, rate via DiskStatsProvider. Qt6::Core;
+    # the interface header is listed (tab-indented) for AUTOMOC.
+    add_executable(darkspark-storage-service-test
+        tests/services/StorageTelemetryServiceTest.cpp
+        src/services/StorageTelemetryService.cpp
+        src/services/StorageTelemetryService.hpp
+        src/services/FilesystemProvider.cpp
+        src/services/NVMeProvider.cpp
+        src/services/DiskStatsProvider.cpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-storage-service-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-storage-service-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-storage-service-test
+        COMMAND darkspark-storage-service-test
     )
 
     # GPU service test: the GPU providers derive from QObject, so this target

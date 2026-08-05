@@ -10,6 +10,7 @@ class CpuInstrument;
 class GpuInstrument;
 class MemoryInstrument;
 class CoolingInstrument;
+class StorageInstrument;
 }
 
 namespace darkspark::deck::pages {
@@ -75,6 +76,12 @@ public:
         return coolingInstrument_;
     }
 
+    /// The live Storage instrument. Composition creates it; Application binds it
+    /// to storage telemetry, so this page stays telemetry-independent.
+    [[nodiscard]] instruments::StorageInstrument* storageInstrument() const {
+        return storageInstrument_;
+    }
+
 private:
     QWidget* buildStatusRegion();
     QWidget* buildNavigationRegion();
@@ -85,6 +92,7 @@ private:
     instruments::GpuInstrument* gpuInstrument_ = nullptr;
     instruments::MemoryInstrument* memoryInstrument_ = nullptr;
     instruments::CoolingInstrument* coolingInstrument_ = nullptr;
+    instruments::StorageInstrument* storageInstrument_ = nullptr;
     QList<instruments::CpuInstrument*> shellInstruments_;
 };
 

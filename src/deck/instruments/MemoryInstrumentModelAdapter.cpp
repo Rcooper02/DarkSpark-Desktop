@@ -83,6 +83,12 @@ bool MemoryInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::CoolingPrimary:
     case MetricId::CoolingSecondary:
     case MetricId::CoolingCoolantTemp:
+    case MetricId::StorageUtilization:
+    case MetricId::StorageUsedBytes:
+    case MetricId::StorageTotalBytes:
+    case MetricId::StorageTemperature:
+    case MetricId::StorageReadRate:
+    case MetricId::StorageWriteRate:
         // Not shown by the memory instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;

@@ -58,6 +58,12 @@ constexpr int kMaxColumns = 6;
     case models::MetricId::CoolingPrimary:
     case models::MetricId::CoolingSecondary:
     case models::MetricId::CoolingCoolantTemp:
+    case models::MetricId::StorageUtilization:
+    case models::MetricId::StorageUsedBytes:
+    case models::MetricId::StorageTotalBytes:
+    case models::MetricId::StorageTemperature:
+    case models::MetricId::StorageReadRate:
+    case models::MetricId::StorageWriteRate:
         // Intentional: GPU metrics have NO card-dashboard mapping. GPU is a
         // Command Deck instrument, not a card on the legacy dashboard. Returning
         // nullptr routes any GPU sample to the safe "no card for this metric"
@@ -107,6 +113,12 @@ struct Thresholds {
     case models::MetricId::CoolingPrimary:
     case models::MetricId::CoolingSecondary:
     case models::MetricId::CoolingCoolantTemp:
+    case models::MetricId::StorageUtilization:
+    case models::MetricId::StorageUsedBytes:
+    case models::MetricId::StorageTotalBytes:
+    case models::MetricId::StorageTemperature:
+    case models::MetricId::StorageReadRate:
+    case models::MetricId::StorageWriteRate:
         // Intentional: no GPU thresholds here. Health is the future Health
         // Engine's exclusive concern, never this page's. The unreachable-high
         // sentinel guarantees no escalation is produced even if a GPU sample
@@ -144,6 +156,11 @@ struct Thresholds {
         // RPM-valued metrics are Command Deck instrument data (Cooling), never
         // legacy cards. Deliberate -Wswitch decision; plain integer RPM.
         return QString::number(value, 'f', 0) + QStringLiteral(" RPM");
+    case models::MetricUnit::BytesPerSecond:
+        // Throughput metrics are Command Deck instrument data (Storage), never
+        // legacy cards. Deliberate -Wswitch decision; MB/s if ever surfaced.
+        return QString::number(value / (1024.0 * 1024.0), 'f', 1)
+               + QStringLiteral(" MB/s");
     }
     return QString::number(value, 'f', 1);
 }

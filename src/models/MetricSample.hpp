@@ -21,10 +21,16 @@ enum class MetricId {
     MemoryTotalBytes,
     CoolingPrimary,
     CoolingSecondary,
-    CoolingCoolantTemp
+    CoolingCoolantTemp,
+    StorageUtilization,
+    StorageUsedBytes,
+    StorageTotalBytes,
+    StorageTemperature,
+    StorageReadRate,
+    StorageWriteRate
 };
 
-enum class MetricUnit { Percent, Celsius, Bytes, Rpm };
+enum class MetricUnit { Percent, Celsius, Bytes, Rpm, BytesPerSecond };
 
 /// Data-quality of a reading. This is NOT health: it says whether the value is
 /// current, stale, or absent, and nothing about whether the value is good or

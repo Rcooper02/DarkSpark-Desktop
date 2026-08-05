@@ -55,6 +55,12 @@ bool CoolingInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::MemoryUtilization:
     case MetricId::MemoryUsedBytes:
     case MetricId::MemoryTotalBytes:
+    case MetricId::StorageUtilization:
+    case MetricId::StorageUsedBytes:
+    case MetricId::StorageTotalBytes:
+    case MetricId::StorageTemperature:
+    case MetricId::StorageReadRate:
+    case MetricId::StorageWriteRate:
         // Not shown by the cooling instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;
