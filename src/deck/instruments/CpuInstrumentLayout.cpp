@@ -17,7 +17,7 @@ namespace {
 
 using namespace layout_constants;
 
-CpuInstrumentLayout resolveLarge(double side, double util,
+CpuInstrumentLayout resolveLarge(double side, double primaryProgress,
                                  double secondaryFraction) {
     CpuInstrumentLayout l;
     l.side = side;
@@ -29,7 +29,10 @@ CpuInstrumentLayout resolveLarge(double side, double util,
     l.utilizationRing.outerRadius = side * kLargeOuterRadiusFrac;
     l.utilizationRing.thickness = side * kLargeOuterThicknessFrac;
     l.utilizationRing.segments = kLargeOuterSegments;
-    l.utilizationRing.fillFraction = positionalFraction(util, 0.0, 100.0);
+    // Outer ring is filled by the pre-computed [0,1] progress the instrument
+    // supplies (visualization state), so this shared geometry stays
+    // subsystem-agnostic -- no percentage assumption here.
+    l.utilizationRing.fillFraction = primaryProgress;
     l.utilizationRing.present = true;
 
     l.temperatureRing.outerRadius = side * kLargeInnerRadiusFrac;
@@ -58,7 +61,7 @@ CpuInstrumentLayout resolveLarge(double side, double util,
     return l;
 }
 
-CpuInstrumentLayout resolveSmall(double side, double util) {
+CpuInstrumentLayout resolveSmall(double side, double primaryProgress) {
     CpuInstrumentLayout l;
     l.side = side;
     l.centerX = side / 2.0;
@@ -71,7 +74,10 @@ CpuInstrumentLayout resolveSmall(double side, double util) {
     l.utilizationRing.outerRadius = side * kSmallOuterRadiusFrac;
     l.utilizationRing.thickness = side * kSmallOuterThicknessFrac;
     l.utilizationRing.segments = kSmallSegments;
-    l.utilizationRing.fillFraction = positionalFraction(util, 0.0, 100.0);
+    // Outer ring is filled by the pre-computed [0,1] progress the instrument
+    // supplies (visualization state), so this shared geometry stays
+    // subsystem-agnostic -- no percentage assumption here.
+    l.utilizationRing.fillFraction = primaryProgress;
     l.utilizationRing.present = true;
 
     // No inner ring in Small: temperature becomes a compact text line.
@@ -94,17 +100,17 @@ CpuInstrumentLayout resolveSmall(double side, double util) {
 
 CpuInstrumentLayout resolveCpuInstrumentLayout(InstrumentSizeMode mode,
                                                double side,
-                                               double utilizationPercent,
+                                               double primaryProgress,
                                                double secondaryFraction) {
     switch (mode) {
     case InstrumentSizeMode::Small:
-        return resolveSmall(side, utilizationPercent);
+        return resolveSmall(side, primaryProgress);
     case InstrumentSizeMode::Large:
     case InstrumentSizeMode::Medium:  // fall back to Large until designed
     case InstrumentSizeMode::Wide:    // fall back to Large until designed
-        return resolveLarge(side, utilizationPercent, secondaryFraction);
+        return resolveLarge(side, primaryProgress, secondaryFraction);
     }
-    return resolveLarge(side, utilizationPercent, secondaryFraction);
+    return resolveLarge(side, primaryProgress, secondaryFraction);
 }
 
 }  // namespace darkspark::deck::instruments

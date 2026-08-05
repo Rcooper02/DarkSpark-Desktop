@@ -132,21 +132,28 @@ void GpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     // from the current (interpolated) state. GPU's milestone-1 identity is just
     // its title and a very subtle accent variation.
     InstrumentRenderModel rm;
-    rm.utilizationPercent = displayed_.utilizationPercent;
-    rm.utilizationAvailability = displayed_.utilizationAvailability;
-    // GPU owns its secondary presentation, identically to CPU: temperature text
-    // with its unit, and the inner-ring fraction from the temperature range.
-    rm.secondaryAvailability = displayed_.temperatureAvailability;
+    // GPU formats its own primary identically to CPU: integer percent, "%"
+    // suffix, outer ring from the 0-100 range.
+    rm.primary.availability = displayed_.utilizationAvailability;
+    rm.primary.text = QString::number(displayed_.utilizationPercent, 'f', 0);
+    rm.primary.suffix = QStringLiteral("%");
+    rm.primary.progress =
+        positionalFraction(displayed_.utilizationPercent, 0.0, 100.0);
+
+    // GPU owns its secondary presentation, identically to CPU: temperature value
+    // + "\u00B0C" suffix; "--\u00B0C" (renderable) when unavailable.
     if (displayed_.temperatureAvailability != ValueAvailability::Absent) {
-        rm.secondaryText = QString::number(displayed_.temperatureCelsius, 'f', 0)
-                           + QStringLiteral("\u00B0C");
+        rm.secondary.availability = displayed_.temperatureAvailability;
+        rm.secondary.text =
+            QString::number(displayed_.temperatureCelsius, 'f', 0);
     } else {
-        // Preserve the exact prior appearance: "--\u00B0C" with the unit.
-        rm.secondaryText = QStringLiteral("--\u00B0C");
+        rm.secondary.availability = ValueAvailability::Live;
+        rm.secondary.text = QStringLiteral("--");
     }
-    rm.secondaryValue = positionalFraction(displayed_.temperatureCelsius,
-                                           layout_constants::kTempSpanLowC,
-                                           layout_constants::kTempSpanHighC);
+    rm.secondary.suffix = QStringLiteral("\u00B0C");
+    rm.secondary.progress = positionalFraction(displayed_.temperatureCelsius,
+                                               layout_constants::kTempSpanLowC,
+                                               layout_constants::kTempSpanHighC);
     rm.hasSecondaryRing = true;
     rm.title = QStringLiteral("GPU");
     rm.awaitingTelemetry = false;

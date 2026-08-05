@@ -170,24 +170,33 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     // hand it to the renderer. CPU's identity here is just its title and cyan
     // accent; everything about HOW an instrument looks is shared code.
     InstrumentRenderModel rm;
-    rm.utilizationPercent = displayed_.utilizationPercent;
-    rm.utilizationAvailability = displayed_.utilizationAvailability;
-    // CPU owns its secondary presentation: the temperature text (with its unit)
-    // and the inner-ring fraction mapped from the temperature range. This
-    // reproduces exactly what the renderer used to do for temperature, now that
-    // the renderer is subsystem-neutral.
-    rm.secondaryAvailability = displayed_.temperatureAvailability;
+    // CPU formats its own primary, reproducing the exact prior appearance: an
+    // integer percent with a "%" suffix, and the outer ring filled from the
+    // 0-100 range. The renderer no longer knows this is a percentage.
+    rm.primary.availability = displayed_.utilizationAvailability;
+    rm.primary.text = QString::number(displayed_.utilizationPercent, 'f', 0);
+    rm.primary.suffix = QStringLiteral("%");
+    rm.primary.progress =
+        positionalFraction(displayed_.utilizationPercent, 0.0, 100.0);
+
+    // CPU owns its secondary presentation: temperature value + "\u00B0C" suffix,
+    // with the inner-ring fraction mapped from the temperature range. To
+    // reproduce the exact prior appearance when temperature is unavailable
+    // ("--\u00B0C", with the unit), the secondary is kept renderable (Live) with
+    // text "--" and the unit suffix; the renderer composes text + suffix
+    // identically for primary and secondary.
     if (displayed_.temperatureAvailability != ValueAvailability::Absent) {
-        rm.secondaryText = QString::number(displayed_.temperatureCelsius, 'f', 0)
-                           + QStringLiteral("\u00B0C");
+        rm.secondary.availability = displayed_.temperatureAvailability;
+        rm.secondary.text =
+            QString::number(displayed_.temperatureCelsius, 'f', 0);
     } else {
-        // Preserve the exact prior appearance: an unavailable temperature reads
-        // "--\u00B0C", with the unit, not a bare "--". CPU owns this text.
-        rm.secondaryText = QStringLiteral("--\u00B0C");
+        rm.secondary.availability = ValueAvailability::Live;
+        rm.secondary.text = QStringLiteral("--");
     }
-    rm.secondaryValue = positionalFraction(displayed_.temperatureCelsius,
-                                           layout_constants::kTempSpanLowC,
-                                           layout_constants::kTempSpanHighC);
+    rm.secondary.suffix = QStringLiteral("\u00B0C");
+    rm.secondary.progress = positionalFraction(displayed_.temperatureCelsius,
+                                               layout_constants::kTempSpanLowC,
+                                               layout_constants::kTempSpanHighC);
     rm.hasSecondaryRing = true;
     rm.title = title_;
     rm.awaitingTelemetry = awaitingTelemetry_;

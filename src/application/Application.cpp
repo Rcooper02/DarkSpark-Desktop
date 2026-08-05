@@ -17,7 +17,10 @@
 #include "services/CpuThermalService.hpp"
 #include "deck/instruments/MemoryInstrument.hpp"
 #include "deck/instruments/MemoryInstrumentModelAdapter.hpp"
+#include "deck/instruments/CoolingInstrument.hpp"
+#include "deck/instruments/CoolingInstrumentModelAdapter.hpp"
 #include "services/MemoryTelemetryService.hpp"
+#include "services/CoolingTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -322,9 +325,34 @@ void Application::startCommandDeck() {
         applyMemorySample(sample);
     }
 
+    // Cooling wiring, the fourth live subsystem, bound with the same reference
+    // pattern: coolingProvider -> coolingAdapter -> page->coolingInstrument().
+    // The provider aggregates cooling sensor providers, selects roles, and emits
+    // role-based samples; the adapter joins them. The page stays
+    // telemetry-independent.
+    auto* cooling = page->coolingInstrument();
+    auto coolingAdapter =
+        std::make_shared<deck::instruments::CoolingInstrumentModelAdapter>();
+    auto applyCoolingSample =
+        [coolingAdapter, cooling](const models::MetricSample& sample) {
+            if (coolingAdapter->apply(sample)) {
+                cooling->setModel(coolingAdapter->model());
+            }
+        };
+
+    auto* coolingProvider = new services::CoolingTelemetryService(window.get());
+    connect(coolingProvider, &interfaces::ITelemetryProvider::readingChanged,
+            window.get(), applyCoolingSample);
+    coolingProvider->start();
+    const QList<models::MetricSample> coolingPrimed =
+        coolingProvider->currentSamples();
+    for (const models::MetricSample& sample : coolingPrimed) {
+        applyCoolingSample(sample);
+    }
+
     window->showFullScreen();
     commandDeckWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory telemetry)";
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory + Cooling telemetry)";
 }
 
 void Application::startTelemetry() {

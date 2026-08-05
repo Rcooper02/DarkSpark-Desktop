@@ -18,10 +18,13 @@ enum class MetricId {
     GpuTotalUtilization,
     GpuTemperature,
     MemoryUsedBytes,
-    MemoryTotalBytes
+    MemoryTotalBytes,
+    CoolingPrimary,
+    CoolingSecondary,
+    CoolingCoolantTemp
 };
 
-enum class MetricUnit { Percent, Celsius, Bytes };
+enum class MetricUnit { Percent, Celsius, Bytes, Rpm };
 
 /// Data-quality of a reading. This is NOT health: it says whether the value is
 /// current, stale, or absent, and nothing about whether the value is good or

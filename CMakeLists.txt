@@ -103,6 +103,17 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/MemoryInstrumentModel.hpp
     src/deck/instruments/MemoryInstrumentModelAdapter.cpp
     src/deck/instruments/MemoryInstrumentModelAdapter.hpp
+    src/deck/instruments/CoolingInstrument.cpp
+    src/deck/instruments/CoolingInstrument.hpp
+    src/deck/instruments/CoolingInstrumentModel.hpp
+    src/deck/instruments/CoolingInstrumentModelAdapter.cpp
+    src/deck/instruments/CoolingInstrumentModelAdapter.hpp
+    src/deck/instruments/RingNormalizationPolicy.hpp
+    src/services/CoolingSensorProvider.hpp
+    src/services/HwmonCoolingProvider.cpp
+    src/services/HwmonCoolingProvider.hpp
+    src/services/CoolingTelemetryService.cpp
+    src/services/CoolingTelemetryService.hpp
     src/deck/instruments/InstrumentRenderer.cpp
     src/deck/instruments/InstrumentRenderer.hpp
     src/deck/instruments/InstrumentRenderModel.hpp
@@ -250,6 +261,58 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-memory-adapter-test
         COMMAND darkspark-memory-adapter-test
+    )
+
+    # Cooling adapter test: role-based join/ignore/no-fabrication. Qt-free.
+    add_executable(darkspark-cooling-adapter-test
+        tests/deck/instruments/CoolingInstrumentModelAdapterTest.cpp
+        src/deck/instruments/CoolingInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-cooling-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-cooling-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-cooling-adapter-test
+        COMMAND darkspark-cooling-adapter-test
+    )
+
+    # Cooling normalization policy test: adaptive activity fill. Qt-free.
+    add_executable(darkspark-cooling-normalization-test
+        tests/deck/instruments/RingNormalizationPolicyTest.cpp
+    )
+    target_include_directories(darkspark-cooling-normalization-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-cooling-normalization-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-cooling-normalization-test
+        COMMAND darkspark-cooling-normalization-test
+    )
+
+    # Cooling service test: provider aggregation + role selection + Fresh/Stale/
+    # Unavailable via synthetic providers. Links Qt6::Core; the interface header
+    # is listed (tab-indented) for AUTOMOC of the base meta-object.
+    add_executable(darkspark-cooling-service-test
+        tests/services/CoolingTelemetryServiceTest.cpp
+        src/services/CoolingTelemetryService.cpp
+        src/services/CoolingTelemetryService.hpp
+        src/services/HwmonCoolingProvider.cpp
+        src/services/HwmonCoolingProvider.hpp
+        src/services/GpuDeviceSelector.cpp
+        src/services/GpuDeviceSelector.hpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-cooling-service-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-cooling-service-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-cooling-service-test
+        COMMAND darkspark-cooling-service-test
     )
 
     # GPU service test: the GPU providers derive from QObject, so this target

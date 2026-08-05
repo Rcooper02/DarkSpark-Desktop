@@ -80,6 +80,9 @@ bool MemoryInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::CpuTemperature:
     case MetricId::GpuTotalUtilization:
     case MetricId::GpuTemperature:
+    case MetricId::CoolingPrimary:
+    case MetricId::CoolingSecondary:
+    case MetricId::CoolingCoolantTemp:
         // Not shown by the memory instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;

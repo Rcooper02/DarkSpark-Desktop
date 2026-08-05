@@ -246,14 +246,15 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.setFont(f);
         const double h = layout.primaryValuePx * 1.4;
         const QRectF box(0, layout.valueY - h / 2.0, layout.side, h);
-        // When utilization has no value (a shell awaiting telemetry, or a live
-        // instrument whose utilization is momentarily unavailable), show a
-        // restrained placeholder instead of a fabricated 0%. Presentation only.
+        // The instrument supplies the fully-formatted primary value and its unit
+        // suffix; the renderer paints them and never interprets the unit. When
+        // the primary has no value (a shell awaiting telemetry, or a live
+        // instrument whose primary is momentarily unavailable), show a restrained
+        // placeholder instead of a fabricated value. Presentation only.
         const QString text =
-            (rm.utilizationAvailability == ValueAvailability::Absent)
+            (rm.primary.availability == ValueAvailability::Absent)
                 ? QStringLiteral("--")
-                : QString::number(rm.utilizationPercent, 'f', 0)
-                      + QStringLiteral("%");
+                : rm.primary.text + rm.primary.suffix;
 
         // Glow underlay in the utilization accent, low alpha.
         QColor valueGlow = accents.utilization;
@@ -292,14 +293,16 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
             // status caption. The dormant conduits already convey "present but
             // not live".
             secondaryText = QStringLiteral("Awaiting Telemetry");
-        } else if (!rm.secondaryText.isEmpty()) {
-            // The instrument formatted this, units and all -- including its own
-            // absence text (e.g. "--\u00B0C"). The renderer stays unit-neutral.
-            secondaryText = rm.secondaryText;
-        } else {
-            // The instrument left the secondary empty: a restrained, unit-free
-            // neutral placeholder rather than a fabricated value.
+        } else if (rm.secondary.availability == ValueAvailability::Absent
+                   || rm.secondary.text.isEmpty()) {
+            // No current secondary reading: a restrained, unit-free neutral
+            // placeholder rather than a fabricated value.
             secondaryText = QStringLiteral("--");
+        } else {
+            // The instrument supplies value text + unit suffix; the renderer
+            // composes them exactly as it does the primary and never interprets
+            // the unit.
+            secondaryText = rm.secondary.text + rm.secondary.suffix;
         }
         painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, secondaryText);
     }
@@ -356,8 +359,14 @@ void renderEnergyLayer(QPainter& painter, const CpuInstrumentLayout& layout,
                        const InstrumentRenderModel& model) {
     paintSegmentedRing(painter, layout, layout.utilizationRing,
                        model.accents.utilization, model.glowStrength);
-    paintSegmentedRing(painter, layout, layout.temperatureRing,
-                       model.accents.temperature, model.glowStrength);
+    // The inner (secondary) conduit is drawn only when the instrument declares
+    // it has one. A single-ring instrument (e.g. Cooling V1) sets
+    // hasSecondaryRing false and no inner ring is painted. The renderer acts on
+    // the flag, never on subsystem identity.
+    if (model.hasSecondaryRing) {
+        paintSegmentedRing(painter, layout, layout.temperatureRing,
+                           model.accents.temperature, model.glowStrength);
+    }
 }
 
 /// INFORMATION -- communicates state. Title, dominant value, secondary line.
@@ -390,7 +399,7 @@ void paint(QPainter& painter, const QRect& widgetRect,
     painter.translate(widgetRect.x() + offsetX, widgetRect.y() + offsetY);
 
     const CpuInstrumentLayout layout = resolveCpuInstrumentLayout(
-        model.mode, side, model.utilizationPercent, model.secondaryValue);
+        model.mode, side, model.primary.progress, model.secondary.progress);
 
     renderStructureLayer(painter, layout, model);    // Layer 1
     renderEnergyLayer(painter, layout, model);       // Layer 2

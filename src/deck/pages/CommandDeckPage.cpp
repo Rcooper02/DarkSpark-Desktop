@@ -7,6 +7,7 @@
 
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/MemoryInstrument.hpp"
+#include "deck/instruments/CoolingInstrument.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "themes/LegacyTheme.hpp"
@@ -15,6 +16,7 @@ namespace darkspark::deck::pages {
 
 using instruments::CpuInstrument;
 using instruments::MemoryInstrument;
+using instruments::CoolingInstrument;
 using instruments::GpuInstrument;
 using instruments::InstrumentSizeMode;
 
@@ -120,16 +122,20 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
     memoryInstrument_ = new MemoryInstrument(InstrumentSizeMode::Small, region);
     grid->addWidget(memoryInstrument_, 0, 1, Qt::AlignCenter);
 
-    // Remaining shells, placed after the live GPU and Memory slots: Cooling,
-    // Network, Storage. GPU and Memory are intentionally skipped here since they
-    // are now live.
+    // Cooling is the fourth live subsystem instrument, at (0, 2). Created here
+    // (composition), bound to telemetry outside the page (Application).
+    coolingInstrument_ = new CoolingInstrument(InstrumentSizeMode::Small, region);
+    grid->addWidget(coolingInstrument_, 0, 2, Qt::AlignCenter);
+
+    // Remaining shells, after the live GPU/Memory/Cooling slots: Network,
+    // Storage. Live instruments are intentionally skipped here.
     struct ShellPlacement {
         const char* title;
         int row;
         int col;
     };
     static const ShellPlacement kShells[] = {
-        {"Cooling", 0, 2}, {"Network", 1, 0}, {"Storage", 1, 1}};
+        {"Network", 1, 0}, {"Storage", 1, 1}};
     for (const ShellPlacement& s : kShells) {
         auto* shell = new CpuInstrument(InstrumentSizeMode::Small, region);
         shell->setTitle(QString::fromUtf8(s.title));

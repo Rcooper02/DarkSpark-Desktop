@@ -35,15 +35,17 @@ QString MemoryInstrument::formatGigabytes(double bytes) {
 }
 
 QString MemoryInstrument::formatSecondaryLine(const MemoryInstrumentModel& m) {
-    // Only present a "used / total GB" line when both figures are available.
+    // Only present a "used / total" line when both figures are available.
     // Otherwise return empty so the shared renderer shows its neutral "--"
-    // placeholder instead of a fabricated number.
+    // placeholder instead of a fabricated number. The " GB" unit is supplied
+    // separately as the RenderValue suffix (the renderer composes text+suffix),
+    // keeping this function unit-value only.
     if (m.usedAvailability == ValueAvailability::Absent
         || m.totalAvailability == ValueAvailability::Absent) {
         return QString();
     }
     return formatGigabytes(m.usedBytes) + QStringLiteral(" / ")
-           + formatGigabytes(m.totalBytes) + QStringLiteral(" GB");
+           + formatGigabytes(m.totalBytes);
 }
 
 MemoryInstrument::MemoryInstrument(InstrumentSizeMode mode, QWidget* parent)
@@ -162,21 +164,29 @@ void MemoryInstrument::paintEvent(QPaintEvent* /*event*/) {
     // functional milestone is just its title and its "used / total GB"
     // secondary line -- no Library personality yet.
     InstrumentRenderModel rm;
-    rm.utilizationPercent = displayed_.utilizationPercent;
-    rm.utilizationAvailability = displayed_.utilizationAvailability;
+    // Memory formats its own primary: utilization percent with "%" suffix, outer
+    // ring from the 0-100 range -- byte-identical to the prior output.
+    rm.primary.availability = displayed_.utilizationAvailability;
+    rm.primary.text = QString::number(displayed_.utilizationPercent, 'f', 0);
+    rm.primary.suffix = QStringLiteral("%");
+    rm.primary.progress =
+        positionalFraction(displayed_.utilizationPercent, 0.0, 100.0);
 
-    // Memory owns its secondary presentation: "used / total GB", and the
-    // inner-ring fraction as the used/total ratio.
-    rm.secondaryText = formatSecondaryLine(displayed_);
-    // The secondary reading is available when the byte line could be formed.
-    rm.secondaryAvailability = rm.secondaryText.isEmpty()
-                                   ? ValueAvailability::Absent
-                                   : displayed_.usedAvailability;
+    // Memory owns its secondary presentation: "used / total" value with a " GB"
+    // suffix, and the inner-ring fraction as the used/total ratio. The renderer
+    // composes text + suffix, giving the identical "12.4 / 32.0 GB" line.
+    const QString secText = formatSecondaryLine(displayed_);
+    rm.secondary.text = secText;
+    rm.secondary.suffix =
+        secText.isEmpty() ? QString() : QStringLiteral(" GB");
+    rm.secondary.availability = secText.isEmpty()
+                                    ? ValueAvailability::Absent
+                                    : displayed_.usedAvailability;
     double ratio = 0.0;
     if (displayed_.totalBytes > 0.0) {
         ratio = std::clamp(displayed_.usedBytes / displayed_.totalBytes, 0.0, 1.0);
     }
-    rm.secondaryValue = ratio;
+    rm.secondary.progress = ratio;
     rm.hasSecondaryRing = true;
 
     rm.title = QStringLiteral("Memory");

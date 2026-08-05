@@ -53,6 +53,9 @@ bool GpuInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::MemoryUtilization:
     case MetricId::MemoryUsedBytes:
     case MetricId::MemoryTotalBytes:
+    case MetricId::CoolingPrimary:
+    case MetricId::CoolingSecondary:
+    case MetricId::CoolingCoolantTemp:
         // Not shown by the GPU instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;

@@ -57,7 +57,10 @@ bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
         return false;
     case MetricId::GpuTotalUtilization:
     case MetricId::GpuTemperature:
-        // GPU metrics are handled by the GPU adapter, never the CPU one. Ignored
+    case MetricId::CoolingPrimary:
+    case MetricId::CoolingSecondary:
+    case MetricId::CoolingCoolantTemp:
+        // GPU and Cooling metrics are handled by their own adapters, never the CPU one. Ignored
         // here so a shared telemetry stream does not disturb the CPU instrument.
         // Explicit cases (not a default) preserve the -Wswitch guarantee.
         return false;
