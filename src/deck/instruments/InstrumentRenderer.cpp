@@ -2,6 +2,7 @@
 #include "deck/instruments/InstrumentRenderer.hpp"
 
 #include <QFont>
+#include <QFontMetricsF>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRadialGradient>
@@ -35,6 +36,67 @@ QColor applyWarmth(const QColor& accent, double warmth) {
     out.setBlueF(static_cast<float>(
         std::clamp(accent.blueF() - 0.30 * w, 0.0, 1.0)));
     return out;
+}
+
+constexpr double kTwoPi = 6.283185307179586;
+
+// Reactor thermal color: tells the temperature STORY as a plasma would.
+//   cold  -> cyan (the cool accent)
+//   normal-> blue-white (hotter, energetic)
+//   hot   -> amber
+//   extreme-> orange -> red
+// `t` is normalized thermal [0,1] (personality warmth). Continuous/piecewise.
+QColor reactorPlasmaColor(double t, bool outer) {
+    const double x = std::clamp(t, 0.0, 1.0);
+    // Saturated blue identity held far up the range.
+    const QColor cobalt(20, 70, 200);
+    const QColor electric(30, 140, 255);
+    const QColor litBlue(120, 205, 255);
+    const QColor blueWhite(205, 234, 255);
+    const QColor darkBlue(28, 88, 188);
+    // Molten-metal hot end (never bright yellow).
+    const QColor amber(196, 120, 44);
+    const QColor orange(200, 84, 28);
+    const QColor deepOrange(176, 58, 20);
+    const QColor red(150, 34, 18);
+    auto mix = [](const QColor& a, const QColor& b, double f) {
+        QColor o;
+        o.setRedF(static_cast<float>(
+            std::clamp(a.redF() + (b.redF() - a.redF()) * f, 0.0, 1.0)));
+        o.setGreenF(static_cast<float>(
+            std::clamp(a.greenF() + (b.greenF() - a.greenF()) * f, 0.0, 1.0)));
+        o.setBlueF(static_cast<float>(
+            std::clamp(a.blueF() + (b.blueF() - a.blueF()) * f, 0.0, 1.0)));
+        return o;
+    };
+    if (outer) {
+        // Predominantly cobalt/electric blue; molten only in the top ~10%.
+        if (x <= 0.35) {
+            return mix(cobalt, electric, x / 0.35);
+        }
+        if (x <= 0.72) {
+            return mix(electric, litBlue, (x - 0.35) / 0.37);
+        }
+        if (x <= 0.82) {
+            return mix(litBlue, blueWhite, (x - 0.72) / 0.10);
+        }
+        if (x <= 0.90) {
+            const QColor deep = mix(blueWhite, darkBlue, (x - 0.82) / 0.08);
+            return mix(deep, amber, (x - 0.82) / 0.08 * 0.20);
+        }
+        if (x <= 0.95) {
+            return mix(amber, orange, (x - 0.90) / 0.05);
+        }
+        if (x <= 0.98) {
+            return mix(orange, deepOrange, (x - 0.95) / 0.03);
+        }
+        return mix(deepOrange, red, (x - 0.98) / 0.02);
+    }
+    // Centre stays cobalt -> white-blue; hottest POINT is white-blue.
+    if (x <= 0.85) {
+        return mix(cobalt, blueWhite, x / 0.85);
+    }
+    return mix(blueWhite, amber, (x - 0.85) / 0.15 * 0.14);
 }
 
 void paintGraduationTicks(QPainter& painter, const CpuInstrumentLayout& layout,
@@ -240,7 +302,6 @@ void paintSegmentedRing(QPainter& painter, const CpuInstrumentLayout& layout,
 void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
                       const InstrumentRenderModel& rm) {
     const InstrumentSizeMode mode = rm.mode;
-    const InstrumentAccents& accents = rm.accents;
     const QString& title = rm.title;
     const bool awaiting = rm.awaitingTelemetry;
     const QString mono = LegacyTheme::monoFontFamily();
@@ -288,15 +349,40 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
                 ? QStringLiteral("--")
                 : rm.primary.text + rm.primary.suffix;
 
-        // Glow underlay in the utilization accent, low alpha.
-        QColor valueGlow = accents.utilization;
-        valueGlow.setAlphaF(0.25f);
-        painter.setPen(valueGlow);
-        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, text);
-
-        // Bright core.
-        painter.setPen(LegacyTheme::textPrimary());
-        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, text);
+        // Reference text treatment: cyan OUTER GLOW -> DARK OUTLINE -> WHITE
+        // FILL, as a stroked glyph path (renderer-based), so the percentage
+        // stays instantly readable over any reactor brightness.
+        QPainterPath glyphs;
+        {
+            QFontMetricsF fm(f);
+            const double tw = fm.horizontalAdvance(text);
+            const double bx = (layout.side - tw) / 2.0;
+            const double by =
+                box.center().y() + fm.ascent() / 2.0 - fm.descent() / 2.0;
+            glyphs.addText(QPointF(bx, by), f, text);
+        }
+        const QColor cyanGlow(110, 230, 255);
+        for (int pass = 3; pass >= 1; --pass) {
+            QColor gg = cyanGlow;
+            gg.setAlphaF(static_cast<float>(0.11 * pass));
+            QPen gp(gg);
+            gp.setWidthF(layout.primaryValuePx * (0.06 * pass + 0.05));
+            gp.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(gp);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(glyphs);
+        }
+        QColor outline(6, 12, 20);
+        outline.setAlphaF(0.95f);
+        QPen op(outline);
+        op.setWidthF(std::max(2.0, layout.primaryValuePx * 0.06));
+        op.setJoinStyle(Qt::RoundJoin);
+        painter.setPen(op);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(glyphs);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 255, 255));
+        painter.drawPath(glyphs);
     }
 
     // Secondary line. A neutral subordinate reading: the instrument supplies the
@@ -400,42 +486,436 @@ void renderStructureLayer(QPainter& painter, const CpuInstrumentLayout& layout,
 // accent color, never to subsystem identity. At pulse 0 and ambient 0 it draws
 // nothing, so neutral instruments are unaffected.
 void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
-                      const QColor& accent, double pulse, double ambient,
-                      double warmth) {
-    const double drive = std::clamp(pulse + 0.35 * ambient, 0.0, 1.0);
-    if (drive <= 0.001) {
-        return;
+                      double pulse, double ambient,
+                      double warmth, double flowPhase) {
+    // =====================================================================
+    // THE CORE -- a SEALED REACTOR MODULE. The viewer is looking through a
+    // thick armored viewport into a dangerous piece of hardware. The MACHINE
+    // is the hero; the star exists to justify the machine.
+    //
+    // Read order (what the eye should catch, in sequence):
+    //   1. a heavy engineered machine (titanium housing, bolts, seams)
+    //   2. a reinforced containment chamber (machined stepped bezel)
+    //   3. thick armored glass (depth, bevel, one specular catch)
+    //   4. a brilliant blue star trapped inside (smaller, secondary)
+    //   5. subtle plasma motion
+    //
+    // Designed OUTSIDE-IN. Every element must answer "would an engineer have
+    // built this?" -- if not, it is not drawn.
+    //
+    // ONE LIGHTING RULE: the star is the only light source. Metal, glass,
+    // clamps and bezel do NOT glow; they are visible only where the star
+    // lights their inward faces (bright toward centre, black outward). Only
+    // plasma is self-luminous (additive).
+    // =====================================================================
+    const double thermal = std::clamp(warmth, 0.0, 1.0);
+    const double ambientC = std::clamp(ambient, 0.0, 1.0);
+    const double pulseC = std::clamp(pulse, 0.0, 1.0);
+
+    const double signal = thermal + ambientC + pulseC;
+    if (signal <= 0.001) {
+        return;  // neutral instruments draw nothing
     }
+
     const RingGeometry& innermost = layout.hasInnerRing
                                         ? layout.temperatureRing
                                         : layout.utilizationRing;
-    const double chamberR = innermost.outerRadius - innermost.thickness;
+    const double R = innermost.outerRadius - innermost.thickness;  // chamber rad
     const QPointF c(layout.centerX, layout.centerY);
+    const double clr = std::max(0.0, layout.primaryValuePx * 0.70 * 0.92);
 
-    // The core glow expands with the pulse: a soft radial gradient from a warm-
-    // shiftable accent center out to a fraction of the chamber radius.
-    const double coreR = chamberR * (0.35 + 0.45 * drive);
-    QColor core = accent;
-    if (warmth > 0.0) {
-        const double w = warmth > 1.0 ? 1.0 : warmth;
-        core.setRedF(static_cast<float>(std::clamp(core.redF() + 0.5 * w, 0.0, 1.0)));
-        core.setGreenF(
-            static_cast<float>(std::clamp(core.greenF() + 0.12 * w, 0.0, 1.0)));
-        core.setBlueF(static_cast<float>(std::clamp(core.blueF() - 0.4 * w, 0.0, 1.0)));
-    }
-    QRadialGradient g(c, coreR);
-    QColor inner = core;
-    inner.setAlphaF(static_cast<float>(std::clamp(0.45 * drive, 0.0, 0.6)));
-    QColor mid = core;
-    mid.setAlphaF(static_cast<float>(std::clamp(0.18 * drive, 0.0, 0.3)));
-    QColor outer = core;
-    outer.setAlphaF(0.0f);
-    g.setColorAt(0.0, inner);
-    g.setColorAt(0.55, mid);
-    g.setColorAt(1.0, outer);
+    struct ReactorTuning {
+        // --- Machine housing (structural, dominant; fractions of R) ---
+        double housingOuter = 1.00;    // fills the chamber bounding rect
+        double housingInner = 0.72;    // where the machined bezel begins
+        int panels = 8;                // beveled panel segments (seams between)
+        double seamGap = 3.0;          // degrees of dark seam between panels
+        double boltInset = 0.90;       // bolt-head ring radius
+        int bolts = 8;
+        // --- Clamp modules (4 cardinal containment actuators) ---
+        int clamps = 4;
+        double clampSpan = 30.0;       // degrees each clamp subtends
+        double clampOuter = 0.98;
+        double clampInner = 0.60;      // clamps bridge housing -> chamber
+        double clampBarInset = 0.70;   // cyan field-indicator bar position
+        // --- Containment chamber / bezel (machined depth) ---
+        double bezelOuter = 0.72;
+        double bezelInner = 0.60;      // stepped: outer ring + recessed lip
+        // --- Armored glass (thick viewport) ---
+        double glassOuter = 0.60;
+        double glassInner = 0.54;      // glass thickness band
+        // --- Star (secondary, restrained) ---
+        double starBase = 0.40;        // SMALLER: machine dominates
+        double starThermal = 0.07;
+        double starPulse = 0.03;
+        double starMax = 0.50;
+        double coreRadius = 0.16;      // fraction of star
+        double coreShrink = 0.03;
+        int convection = 3;            // minimal internal motion
+        double convectionAlpha = 0.24;
+        double bloomAlpha = 0.05;
+        // --- Material reflectivities (base gray the star light multiplies) ---
+        double titaniumHi = 0.72;      // machined edge catching light
+        double titaniumLo = 0.14;      // panel body in shadow
+        double copperHi = 0.66;        // coil-spring highlight (warm-ish metal)
+        double boltGray = 0.5;
+        // --- Motion ---
+        double convSpin = 0.05;
+        double hotSlow = 0.4;
+    };
+    constexpr ReactorTuning T{};
+
+    const double intensity =
+        std::clamp(0.36 + 0.30 * pulseC + 0.22 * thermal + 0.12 * ambientC,
+                   0.0, 1.0);
+    const double starR =
+        R * std::clamp(T.starBase + T.starThermal * thermal
+                           + T.starPulse * pulseC,
+                       0.0, T.starMax);
+
+    const QColor starLight = reactorPlasmaColor(thermal, true);
+    const QColor coreLight = reactorPlasmaColor(thermal, false);
+    // The single-light-source rule in one function: tint a surface as if lit by
+    // the star. `reach` is how much star light gets here (falls with distance /
+    // facing away); `mat` is the surface's own reflectivity. reach 0 -> black.
+    auto litBy = [&](double reach, double mat) {
+        const double g = std::clamp(reach, 0.0, 1.0) * std::clamp(mat, 0.0, 1.0);
+        QColor o;
+        o.setRedF(static_cast<float>(std::clamp(starLight.redF() * g, 0.0, 1.0)));
+        o.setGreenF(static_cast<float>(std::clamp(starLight.greenF() * g, 0.0,
+                                                  1.0)));
+        o.setBlueF(static_cast<float>(std::clamp(starLight.blueF() * g, 0.0,
+                                                 1.0)));
+        return o;
+    };
+    // Copper is a warm metal: bias the star light toward amber for coil springs.
+    auto litCopper = [&](double reach) {
+        QColor sc = litBy(reach, T.copperHi);
+        QColor o;
+        o.setRedF(static_cast<float>(std::clamp(sc.redF() * 1.15 + 0.10, 0.0,
+                                                1.0)));
+        o.setGreenF(static_cast<float>(std::clamp(sc.greenF() * 0.85 + 0.04, 0.0,
+                                                  1.0)));
+        o.setBlueF(static_cast<float>(std::clamp(sc.blueF() * 0.55, 0.0, 1.0)));
+        return o;
+    };
+
+    const double hotSlow = 1.0 - T.hotSlow * thermal;
+    const double convSpin = flowPhase * T.convSpin * hotSlow;
+    const QPainter::CompositionMode prevMode = painter.compositionMode();
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(g);
-    painter.drawEllipse(c, coreR, coreR);
+
+    auto deg2 = [](double d) { return static_cast<int>(d * 16.0); };
+
+    // ============ (1) HEAVY MACHINE HOUSING ===============================
+    // Beveled titanium panel segments filling the chamber, with dark seams
+    // between them and a ring of bolt heads. Lit on inner edges by the star.
+    // An engineer built this to shield and mount the vessel.
+    {
+        const double rOut = R * T.housingOuter;
+        const double rIn = R * T.housingInner;
+        const double step = 360.0 / T.panels;
+        for (int i = 0; i < T.panels; ++i) {
+            const double a0 = i * step + T.seamGap * 0.5;
+            const double a1 = (i + 1) * step - T.seamGap * 0.5;
+            const double span = a1 - a0;
+            QPainterPath panel;
+            panel.arcMoveTo(-rOut, -rOut, 2 * rOut, 2 * rOut, a0);
+            panel.arcTo(-rOut, -rOut, 2 * rOut, 2 * rOut, a0, span);
+            panel.arcTo(-rIn, -rIn, 2 * rIn, 2 * rIn, a1, -span);
+            panel.closeSubpath();
+            // Titanium: bright machined INNER edge (faces the star), dark body
+            // outward. Radial gradient (origin-centred, we translate to c).
+            QRadialGradient pg(QPointF(0, 0), rOut);
+            QColor hi = litBy(0.62, T.titaniumHi);
+            hi.setAlphaF(0.98f);
+            QColor lo = litBy(0.12, T.titaniumLo);
+            lo.setAlphaF(1.0f);
+            QColor edge(3, 5, 8);
+            edge.setAlphaF(1.0f);
+            pg.setColorAt(std::clamp(rIn / rOut, 0.0, 0.99), hi);
+            pg.setColorAt(std::clamp((rIn / rOut + 1.0) * 0.5, 0.0, 0.995), lo);
+            pg.setColorAt(1.0, edge);
+            painter.save();
+            painter.translate(c);
+            painter.setBrush(pg);
+            painter.setPen(Qt::NoPen);
+            painter.drawPath(panel);
+            painter.restore();
+        }
+        // Bolt heads: small machined studs around the housing.
+        for (int b = 0; b < T.bolts; ++b) {
+            const double a = (b + 0.5) * (360.0 / T.bolts) * M_PI / 180.0;
+            const double br = R * T.boltInset;
+            const QPointF bc(c.x() + br * std::cos(a), c.y() - br * std::sin(a));
+            const double bs = std::max(2.0, R * 0.022);
+            QRadialGradient bg(QPointF(bc.x() - bs * 0.3, bc.y() - bs * 0.3), bs);
+            QColor bh = litBy(0.7, T.boltGray + 0.2);
+            bh.setAlphaF(1.0f);
+            QColor bl(5, 7, 10);
+            bl.setAlphaF(1.0f);
+            bg.setColorAt(0.0, bh);
+            bg.setColorAt(1.0, bl);
+            painter.setBrush(bg);
+            painter.setPen(Qt::NoPen);
+            painter.drawEllipse(bc, bs, bs);
+            QColor slot(2, 3, 5);
+            slot.setAlphaF(0.8f);
+            painter.setBrush(slot);
+            painter.drawEllipse(bc, bs * 0.4, bs * 0.4);
+        }
+    }
+
+    // ============ (2) CONTAINMENT CHAMBER -- machined stepped bezel ========
+    // A structural flange with depth: an outer ring, then a recessed inner lip.
+    // Titanium, lit from the star; the step reads via a lit face + a shadow.
+    {
+        QRadialGradient bz(c, R * T.bezelOuter);
+        QColor face = litBy(0.5, T.titaniumHi);
+        face.setAlphaF(1.0f);
+        QColor body = litBy(0.16, T.titaniumLo);
+        body.setAlphaF(1.0f);
+        bz.setColorAt(0.0, body);
+        bz.setColorAt(0.9, body);
+        bz.setColorAt(0.965, face);   // machined outer lip catches light
+        bz.setColorAt(1.0, QColor(4, 6, 9));
+        painter.setBrush(bz);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(c, R * T.bezelOuter, R * T.bezelOuter);
+        QRadialGradient lip(c, R * T.bezelInner + R * 0.02);
+        QColor shadow(3, 5, 8);
+        shadow.setAlphaF(1.0f);
+        QColor litEdge = litBy(0.65, T.titaniumHi);
+        litEdge.setAlphaF(1.0f);
+        lip.setColorAt(0.0, shadow);
+        lip.setColorAt(0.86, shadow);
+        lip.setColorAt(0.95, litEdge);  // inner lip grazed by the star
+        lip.setColorAt(1.0, QColor(2, 3, 5));
+        painter.setBrush(lip);
+        painter.drawEllipse(c, R * T.bezelInner + R * 0.02,
+                            R * T.bezelInner + R * 0.02);
+    }
+
+    // ============ (3) FOUR CLAMP MODULES -- containment actuators ==========
+    // At 12/3/6/9. Machined body bridging housing->chamber, a beveled cap, a
+    // recessed cyan field-indicator bar (lit, not glowing), and copper
+    // superconducting-coil hatching. They read as physically clamping the ring.
+    for (int k = 0; k < T.clamps; ++k) {
+        const double ang = k * 90.0;   // degrees, cardinal
+        painter.save();
+        painter.translate(c);
+        painter.rotate(-ang);
+        const double rO = R * T.clampOuter;
+        const double rI = R * T.clampInner;
+        const double half = T.clampSpan / 2.0;
+        QPainterPath bodyP;
+        bodyP.arcMoveTo(-rO, -rO, 2 * rO, 2 * rO, -half);
+        bodyP.arcTo(-rO, -rO, 2 * rO, 2 * rO, -half, T.clampSpan);
+        bodyP.arcTo(-rI, -rI, 2 * rI, 2 * rI, half, -T.clampSpan);
+        bodyP.closeSubpath();
+        QLinearGradient bg(rI, 0, rO, 0);
+        QColor bHi = litBy(0.62, T.titaniumHi);
+        bHi.setAlphaF(1.0f);
+        QColor bLo(7, 10, 14);
+        bLo.setAlphaF(1.0f);
+        bg.setColorAt(0.0, bHi);       // inner face toward star lit
+        bg.setColorAt(0.55, bLo);
+        bg.setColorAt(1.0, QColor(3, 5, 8));
+        painter.setBrush(bg);
+        painter.setPen(Qt::NoPen);
+        painter.drawPath(bodyP);
+        QColor capLit = litBy(0.8, T.titaniumHi + 0.15);
+        capLit.setAlphaF(static_cast<float>(std::clamp(0.6 + 0.3 * intensity,
+                                                       0.0, 0.95)));
+        QPen capPen(capLit);
+        capPen.setWidthF(std::max(1.0, R * 0.006));
+        painter.setPen(capPen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawArc(QRectF(-rI, -rI, 2 * rI, 2 * rI), deg2(-half),
+                        deg2(T.clampSpan));
+        // Copper superconducting-coil hatching across the clamp body.
+        const int ribs = 5;
+        for (int rb = 0; rb <= ribs; ++rb) {
+            const double tt = static_cast<double>(rb) / ribs;
+            const double aa = (-half + T.clampSpan * tt) * M_PI / 180.0;
+            const double r1 = R * (T.clampInner + 0.03);
+            const double r2 = R * (T.clampBarInset - 0.02);
+            QColor cu = litCopper(0.55 + 0.35 * std::cos(aa * 3.0));
+            cu.setAlphaF(0.9f);
+            QPen cp(cu);
+            cp.setWidthF(std::max(1.0, R * 0.008));
+            painter.setPen(cp);
+            painter.drawLine(QPointF(r1 * std::cos(aa), -r1 * std::sin(aa)),
+                             QPointF(r2 * std::cos(aa), -r2 * std::sin(aa)));
+        }
+        // Recessed cyan field-indicator bar (lit by star; a status readout).
+        const double barR = R * T.clampBarInset;
+        QColor bar = litBy(0.9, 0.8);
+        bar.setBlueF(static_cast<float>(std::clamp(bar.blueF() * 1.1 + 0.05, 0.0,
+                                                   1.0)));
+        bar.setAlphaF(static_cast<float>(std::clamp(0.55 + 0.4 * intensity, 0.0,
+                                                    0.95)));
+        QPen barPen(bar);
+        barPen.setWidthF(std::max(1.4, R * 0.02));
+        barPen.setCapStyle(Qt::RoundCap);
+        painter.setPen(barPen);
+        painter.drawArc(QRectF(-barR, -barR, 2 * barR, 2 * barR),
+                        deg2(-half * 0.5), deg2(T.clampSpan * 0.5));
+        painter.restore();
+    }
+
+    // ============ (4) ARMORED GLASS -- thick viewport =====================
+    // A dark glass band with thickness: a shadowed outer edge, a faint blue
+    // inner tint (the star seen through glass), and ONE curved specular catch.
+    {
+        QRadialGradient gl(c, R * T.glassOuter);
+        QColor gOuter(6, 10, 16);
+        gOuter.setAlphaF(1.0f);
+        QColor gTint = litBy(0.4, 0.5);
+        gTint.setAlphaF(0.7f);
+        gl.setColorAt(0.0, gTint);
+        gl.setColorAt(0.85, gTint);
+        gl.setColorAt(0.93, gOuter);      // thickness shadow
+        gl.setColorAt(1.0, QColor(2, 4, 7));
+        painter.setBrush(gl);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(c, R * T.glassOuter, R * T.glassOuter);
+    }
+
+    // NOTE: the glass clip is established inline below with an explicit
+    // save()/setClipPath()/restore() block (no generic lambda) to avoid a GCC 16
+    // template-instantiation ICE in tsubst_expr while substituting a local
+    // `auto&&` callback. Behaviour is identical; artwork is unchanged.
+
+    painter.save();
+    {
+        QPainterPath glassClip;
+        glassClip.addEllipse(c, R * T.glassInner, R * T.glassInner);
+        painter.setClipPath(glassClip);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        QRadialGradient well(c, R * T.glassInner);
+        QColor w0 = litBy(0.45, 0.5);
+        w0.setAlphaF(0.8f);
+        QColor w1(2, 4, 7);
+        w1.setAlphaF(1.0f);
+        well.setColorAt(0.0, w0);
+        well.setColorAt(0.5, w1);
+        well.setColorAt(1.0, w1);
+        painter.setBrush(well);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
+
+        if (starR > 1.0) {
+            // THE STAR -- secondary, restrained. Dense blue sphere, lit from its
+            // own core, limb-darkened. Enough to say "something dangerous here".
+            QRadialGradient body(c, starR);
+            QColor b0 = coreLight.lighter(130);
+            b0.setAlphaF(0.95f);
+            QColor bmid = starLight;
+            bmid.setAlphaF(0.9f);
+            QColor b1 = starLight.darker(300);
+            b1.setAlphaF(0.85f);
+            body.setColorAt(0.0, b0);
+            body.setColorAt(0.55, bmid);
+            body.setColorAt(1.0, b1);
+            painter.setBrush(body);
+            painter.drawEllipse(c, starR, starR);
+
+            // SUBTLE plasma motion: a few slow convection masses, clipped, low.
+            painter.save();
+            QPainterPath sc;
+            sc.addEllipse(c, starR * 0.92, starR * 0.92);
+            painter.setClipPath(sc);
+            for (int i = 0; i < T.convection; ++i) {
+                const double fi = static_cast<double>(i);
+                const double a = convSpin * (1.0 + 0.1 * fi) + fi * 2.1;
+                const double orbit = starR * (0.24 + 0.16 * (i % 2));
+                const QPointF mc(c.x() + orbit * std::cos(a),
+                                 c.y() - orbit * std::sin(a * 0.85));
+                const double mr = starR * (0.4 + 0.08 * std::sin(fi * 1.3));
+                QRadialGradient g(mc, mr);
+                QColor hot = coreLight.lighter(140);
+                hot.setAlphaF(static_cast<float>(
+                    std::clamp(T.convectionAlpha * (0.5 + 0.5 * intensity), 0.0,
+                               0.35)));
+                QColor edge = hot;
+                edge.setAlphaF(0.0f);
+                g.setColorAt(0.0, hot);
+                g.setColorAt(1.0, edge);
+                painter.setBrush(g);
+                painter.setPen(Qt::NoPen);
+                painter.drawEllipse(mc, mr, mr);
+            }
+            painter.restore();
+
+            // Core: tiny, violently bright, blue-white (additive).
+            const double coreR = std::min(
+                clr * 0.5,
+                std::max(2.0, starR * (T.coreRadius - T.coreShrink * thermal)));
+            painter.setCompositionMode(QPainter::CompositionMode_Plus);
+            QRadialGradient pg(c, coreR);
+            QColor whiteBlue(232, 245, 255);
+            whiteBlue.setAlphaF(static_cast<float>(
+                std::clamp(0.85 + 0.12 * intensity, 0.0, 0.98)));
+            QColor tint = coreLight.lighter(150);
+            tint.setAlphaF(static_cast<float>(std::clamp(0.5 + 0.3 * intensity,
+                                                         0.0, 0.85)));
+            QColor he = coreLight;
+            he.setAlphaF(0.0f);
+            pg.setColorAt(0.0, whiteBlue);
+            pg.setColorAt(0.5, whiteBlue);
+            pg.setColorAt(0.8, tint);
+            pg.setColorAt(1.0, he);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(pg);
+            painter.drawEllipse(c, coreR, coreR);
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        }
+    }
+    painter.restore();
+
+    // Armored-glass inner bevel + ONE specular catch (over the glass): the star
+    // catching the curved glass upper-left. Thickness cue.
+    {
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        QColor bevel = litBy(0.55, 0.5);
+        bevel.setAlphaF(0.5f);
+        QPen bp(bevel);
+        bp.setWidthF(std::max(1.4, R * 0.012));
+        painter.setPen(bp);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
+        QColor spec(226, 240, 255);
+        spec.setAlphaF(static_cast<float>(std::clamp(0.12 + 0.08 * intensity,
+                                                     0.0, 0.22)));
+        QPen sp(spec);
+        sp.setWidthF(std::max(1.2, R * 0.02));
+        sp.setCapStyle(Qt::RoundCap);
+        painter.setPen(sp);
+        const double gr = R * T.glassInner * 0.9;
+        painter.drawArc(QRectF(c.x() - gr, c.y() - gr, 2 * gr, 2 * gr),
+                        deg2(112), deg2(46));
+    }
+
+    // Bloom: almost nothing -- a whisper of the star through the glass.
+    {
+        painter.setCompositionMode(QPainter::CompositionMode_Plus);
+        QRadialGradient g(c, R * T.glassInner);
+        QColor h0 = starLight;
+        h0.setAlphaF(static_cast<float>(
+            std::clamp(T.bloomAlpha * (0.5 + 0.5 * intensity), 0.0, 0.08)));
+        QColor h1 = starLight;
+        h1.setAlphaF(0.0f);
+        g.setColorAt(0.0, h0);
+        g.setColorAt(0.5, h0);
+        g.setColorAt(1.0, h1);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(g);
+        painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
+    }
+
+    painter.setCompositionMode(prevMode);
 }
 
 void renderEnergyLayer(QPainter& painter, const CpuInstrumentLayout& layout,
@@ -458,9 +938,9 @@ void renderEnergyLayer(QPainter& painter, const CpuInstrumentLayout& layout,
         applyWarmth(model.accents.temperature, model.personality.warmth);
 
     // Reactor core pulse first (behind the conduits): the lead motion.
-    paintReactorCore(painter, layout, utilAccent, model.personality.pulse,
+    paintReactorCore(painter, layout, model.personality.pulse,
                      model.personality.ambientIntensity,
-                     model.personality.warmth);
+                     model.personality.warmth, model.personality.flowPhase);
 
     const double flowStrength = std::clamp(model.personality.ambientIntensity,
                                           0.0, 1.0);
