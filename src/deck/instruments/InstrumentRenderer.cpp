@@ -567,21 +567,26 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         // --- Behaviour mapping (utilization drives INDEPENDENT properties, not
         //     one global speed; each arc also has its own deterministic
         //     personality so the six never read as clones) ---
-        double evolSpeedBase = 0.32;   // arc topology evolution rate at idle
-        double evolSpeedLoad = 0.55;   // added evolution rate at full load (^0.7)
+        double evolSpeedBase = 0.12;   // arc topology evolution rate at idle
+        double evolSpeedLoad = 0.80;   // added evolution rate at full load (curve)
         double speedVariance = 0.4;    // +/- per-arc speed personality
-        double thicknessLoad = 0.4;    // arcs thicken this much toward full load
+        double thicknessLoad = 0.6;    // arcs thicken this much toward full load
         double thicknessVariance = 0.3;  // +/- per-arc thickness personality
-        double reachLoad = 0.22;       // arcs reach farther out under load
+        double reachLoad = 0.32;       // arcs reach farther out under load
         double curvatureVariance = 0.5;  // +/- per-arc jitter/curvature character
-        double lifetimeBase = 0.10;    // envelope base rate (slow heartbeat)
+        double lifetimeBase = 0.05;    // envelope base rate (slow heartbeat)
         double lifetimeVariance = 0.6; // per-arc lifetime-period spread
-        double lifetimeOverlap = 0.7;  // load raises envelope floor -> arcs
+        double lifetimeOverlap = 0.85; // load raises envelope floor -> arcs
                                        // overlap (dense) instead of speeding up
         double nucleusPulseAmpIdle = 0.06;   // subtle size/bright pulse at idle
         double nucleusPulseAmpLoad = 0.14;   // stronger (never large) at load
         double nucleusPulseSpeedIdle = 0.5;  // slow heartbeat
-        double nucleusPulseSpeedLoad = 1.6;  // energised, never flashing
+        double nucleusPulseSpeedLoad = 2.0;  // energised, never flashing
+        // Load response CURVE: ease-in so low CPU changes little and activity
+        // ramps sharply near the top. Every load-driven term routes through
+        // pow(pulseC, loadCurveExp). 3.0 -> 10% and 30% look alike; 70%->100%
+        // diverge hard.
+        double loadCurveExp = 3.0;
         // --- Material reflectivities (base gray the star light multiplies) ---
         double titaniumHi = 0.72;      // machined edge catching light
         double titaniumLo = 0.14;      // panel body in shadow
@@ -599,6 +604,9 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
     const double cavityR = R * T.cavity;
     const double activation =
         std::clamp(T.activationBase + 0.82 * pulseC, 0.0, 1.0);
+    // Ease-in load response: low CPU changes little; activity ramps sharply near
+    // the top. Every load-driven electrical term routes through this.
+    const double loadCurve = std::pow(pulseC, T.loadCurveExp);
 
     const QColor starLight = reactorPlasmaColor(thermal, true);
     const QColor coreLight = reactorPlasmaColor(thermal, false);
@@ -864,7 +872,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                 return;
             }
             // Outward reach grows with load (arcs push toward containment).
-            const double loadReach = 1.0 + T.reachLoad * pulseC;
+            const double loadReach = 1.0 + T.reachLoad * loadCurve;
             const double reach =
                 cavityR * (secondary ? 0.55 : 0.94) * loadReach;
             const int segs = secondary ? T.arcSegments / 2 : T.arcSegments;
@@ -921,22 +929,22 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
             // (energy tearing through the volume), scaled by load and each arc's
             // own thickness personality. The white centreline stays narrow.
             const double thickK =
-                thickMul * (1.0 + T.thicknessLoad * pulseC);
+                thickMul * (1.0 + T.thicknessLoad * loadCurve);
             double baseAlpha;
             QColor body;
             double bodyW;
             if (pass == 0) {  // rear
                 body = reactorPlasmaColor(thermal, true).darker(220);
                 baseAlpha = T.rearAlpha;
-                bodyW = std::max(1.0, cavityR * 0.018 * thickK);
+                bodyW = std::max(1.6, cavityR * 0.030 * thickK);
             } else if (pass == 1) {  // middle
                 body = reactorPlasmaColor(thermal, true);
                 baseAlpha = T.midAlpha;
-                bodyW = std::max(1.2, cavityR * 0.028 * thickK);
+                bodyW = std::max(2.0, cavityR * 0.050 * thickK);
             } else {  // front
                 body = reactorPlasmaColor(thermal, true).lighter(120);
                 baseAlpha = T.frontAlpha;
-                bodyW = std::max(1.4, cavityR * 0.034 * thickK);
+                bodyW = std::max(2.4, cavityR * 0.060 * thickK);
             }
             // Thermal stress: only near the far/contact end, only when hot.
             const double stress =
@@ -971,7 +979,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                     std::clamp(T.haloAlpha * act * (0.6 + 0.6 * contact), 0.0,
                                0.2)));
                 QPen hp(halo);
-                hp.setWidthF(bodyW * 2.2);
+                hp.setWidthF(std::min(bodyW * 1.8, cavityR * 0.11));
                 hp.setCapStyle(Qt::RoundCap);
                 hp.setJoinStyle(Qt::RoundJoin);
                 painter.setPen(hp);
@@ -1037,7 +1045,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         // Load-driven evolution rate: gentle, non-linear (^0.7) so high load is
         // more active without feeling like fast-forward.
         const double evolRate =
-            T.evolSpeedBase + T.evolSpeedLoad * std::pow(pulseC, 0.7);
+            T.evolSpeedBase + T.evolSpeedLoad * loadCurve;
         // Deliberately incommensurate lifetime multipliers -> peaks rarely align.
         const double lifeMul[6] = {1.00, 1.37, 0.73, 1.61, 0.89, 1.19};
         for (int i = 0; i < T.primaryArcs; ++i) {
@@ -1057,7 +1065,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                 * (1.0 + T.lifetimeVariance * (lifeMul[i % 6] - 1.0));
             const double envRaw =
                 0.5 * (std::sin(flowPhase * lifePeriod + pSeat * 6.2831) + 1.0);
-            const double floor = T.lifetimeOverlap * pulseC;
+            const double floor = T.lifetimeOverlap * loadCurve;
             const double envelope = std::clamp(floor + (1.0 - floor) * envRaw,
                                                0.0, 1.0);
             // Angular seat: individual, drifting; less radial symmetry.
@@ -1080,7 +1088,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                     std::clamp((activation - 0.45 - 0.15 * sB) / 0.4, 0.0, 1.0);
                 // Reconnection frequency rises with load.
                 const double reconThresh =
-                    T.reconnectChance * (0.6 + 0.6 * pulseC);
+                    T.reconnectChance * (0.5 + 0.9 * loadCurve);
                 const double recon =
                     0.5 * (std::sin(flowPhase * 0.4 * pSpeed + fi * 2.0
                                     + sB * 3.1)
@@ -1091,7 +1099,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                                     + 0.3 * std::sin(flowPhase * 0.3 * pSpeed
                                                      + fi + sB);
                 drawArc(100 + i * 3 + sB, sAng, 2, sAct * act, true, evolRate,
-                        pSpeed, pCurve * 1.2, pThick * 0.8);
+                        pSpeed, pCurve * 1.2, pThick * 0.6);
             }
         }
 
@@ -1103,10 +1111,10 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         {
             const double pulseAmp =
                 T.nucleusPulseAmpIdle
-                + (T.nucleusPulseAmpLoad - T.nucleusPulseAmpIdle) * pulseC;
+                + (T.nucleusPulseAmpLoad - T.nucleusPulseAmpIdle) * loadCurve;
             const double pulseSpeed =
                 T.nucleusPulseSpeedIdle
-                + (T.nucleusPulseSpeedLoad - T.nucleusPulseSpeedIdle) * pulseC;
+                + (T.nucleusPulseSpeedLoad - T.nucleusPulseSpeedIdle) * loadCurve;
             const double beat = std::sin(flowPhase * pulseSpeed);
             const double nucR = std::min(coreClear * 0.9,
                                          cavityR * T.nucleusRadius)
