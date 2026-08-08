@@ -544,34 +544,43 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         // --- Armored glass (thick viewport) ---
         double glassOuter = 0.60;
         double glassInner = 0.54;      // glass thickness band
-        // --- Star (secondary, restrained) ---
-        double starBase = 0.40;        // SMALLER: machine dominates
-        double starThermal = 0.07;
-        double starPulse = 0.03;
-        double starMax = 0.50;
-        double coreRadius = 0.16;      // fraction of star
-        double coreShrink = 0.03;
-        int convection = 3;            // minimal internal motion
-        double convectionAlpha = 0.24;
-        double bloomAlpha = 0.05;
+        // --- Electrical core (living reaction inside the cavity) ---
+        double cavity = 0.50;          // core cavity radius (fraction of R)
+        int primaryArcs = 6;           // FIXED pool; utilization ACTIVATES them
+        int arcSegments = 9;           // segments per major arc (irregular path)
+        double arcStep = 0.5;          // segment length as fraction of cavity/seg
+        double arcJitter = 0.42;       // heading jitter (radians) -> electrical
+        double inwardPull = 0.5;       // containment forcing arcs back to centre
+        int secondaryMax = 2;          // secondary branches per primary (activated)
+        double nucleusRadius = 0.06;   // 6% of cavity: tiny dense point
+        // Depth-pass presence (rear/middle/front hierarchy).
+        double rearAlpha = 0.28;
+        double midAlpha = 0.6;
+        double frontAlpha = 0.92;
+        double haloAlpha = 0.1;        // extremely restrained; removable
+        double coreLineAlpha = 0.85;   // thin white-blue centre on front arcs
+        // Behaviour.
+        double activationBase = 0.18;  // lowest-load activation floor
+        double reconnectChance = 0.5;  // how often arcs reconnect (phase-driven)
+        double stressTempThreshold = 0.80;  // amber stress only above this
+        double metalReflect = 0.35;    // faint cold-blue cast on nearby metal
         // --- Material reflectivities (base gray the star light multiplies) ---
         double titaniumHi = 0.72;      // machined edge catching light
         double titaniumLo = 0.14;      // panel body in shadow
         double copperHi = 0.66;        // coil-spring highlight (warm-ish metal)
         double boltGray = 0.5;
-        // --- Motion ---
-        double convSpin = 0.05;
-        double hotSlow = 0.4;
     };
     constexpr ReactorTuning T{};
 
     const double intensity =
         std::clamp(0.36 + 0.30 * pulseC + 0.22 * thermal + 0.12 * ambientC,
                    0.0, 1.0);
-    const double starR =
-        R * std::clamp(T.starBase + T.starThermal * thermal
-                           + T.starPulse * pulseC,
-                       0.0, T.starMax);
+    // The electrical reaction fills a fixed cavity (the machine doesn't move);
+    // its ACTIVITY, not its size, responds to load. `activation` [0,1] smoothly
+    // fades electrical structures in/out -- no abrupt branch-count switching.
+    const double cavityR = R * T.cavity;
+    const double activation =
+        std::clamp(T.activationBase + 0.82 * pulseC, 0.0, 1.0);
 
     const QColor starLight = reactorPlasmaColor(thermal, true);
     const QColor coreLight = reactorPlasmaColor(thermal, false);
@@ -600,8 +609,6 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         return o;
     };
 
-    const double hotSlow = 1.0 - T.hotSlow * thermal;
-    const double convSpin = flowPhase * T.convSpin * hotSlow;
     const QPainter::CompositionMode prevMode = painter.compositionMode();
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     painter.setPen(Qt::NoPen);
@@ -806,70 +813,244 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.setPen(Qt::NoPen);
         painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
 
-        if (starR > 1.0) {
-            // THE STAR -- secondary, restrained. Dense blue sphere, lit from its
-            // own core, limb-darkened. Enough to say "something dangerous here".
-            QRadialGradient body(c, starR);
-            QColor b0 = coreLight.lighter(130);
-            b0.setAlphaF(0.95f);
-            QColor bmid = starLight;
-            bmid.setAlphaF(0.9f);
-            QColor b1 = starLight.darker(300);
-            b1.setAlphaF(0.85f);
-            body.setColorAt(0.0, b0);
-            body.setColorAt(0.55, bmid);
-            body.setColorAt(1.0, b1);
-            painter.setBrush(body);
-            painter.drawEllipse(c, starR, starR);
+        // =============================================================
+        // LIVING ELECTRICAL CORE. No sphere is drawn. The volume is IMPLIED by
+        // the spatial distribution of irregular electrical arcs branching from a
+        // tiny central nucleus. Deterministic in flowPhase (same phase -> same
+        // geometry; smooth evolution, no per-frame randomness). A FIXED pool of
+        // arcs is ACTIVATED by utilization (fade in/out), never switched on.
+        //
+        // Depth by hierarchy: rear (deep cobalt, thin, soft) -> middle (electric
+        // blue) -> front (crisp cyan, white-blue cores). Per arc: faint halo ->
+        // saturated body -> thin white-blue core (halo removable, still crisp).
+        // Temperature = localized stress: blue identity dominant; amber/orange
+        // only on stressed outer/contact segments. Glow minimal.
+        // =============================================================
+        const double coreClear = std::max(2.0, clr * 0.42);  // text-safe centre
 
-            // SUBTLE plasma motion: a few slow convection masses, clipped, low.
-            painter.save();
-            QPainterPath sc;
-            sc.addEllipse(c, starR * 0.92, starR * 0.92);
-            painter.setClipPath(sc);
-            for (int i = 0; i < T.convection; ++i) {
-                const double fi = static_cast<double>(i);
-                const double a = convSpin * (1.0 + 0.1 * fi) + fi * 2.1;
-                const double orbit = starR * (0.24 + 0.16 * (i % 2));
-                const QPointF mc(c.x() + orbit * std::cos(a),
-                                 c.y() - orbit * std::sin(a * 0.85));
-                const double mr = starR * (0.4 + 0.08 * std::sin(fi * 1.3));
-                QRadialGradient g(mc, mr);
-                QColor hot = coreLight.lighter(140);
-                hot.setAlphaF(static_cast<float>(
-                    std::clamp(T.convectionAlpha * (0.5 + 0.5 * intensity), 0.0,
-                               0.35)));
-                QColor edge = hot;
-                edge.setAlphaF(0.0f);
-                g.setColorAt(0.0, hot);
-                g.setColorAt(1.0, edge);
-                painter.setBrush(g);
-                painter.setPen(Qt::NoPen);
-                painter.drawEllipse(mc, mr, mr);
+        // Deterministic pseudo-noise in [-1,1] from integer-ish seeds + phase.
+        auto wob = [](double a, double b, double ph) {
+            const double v = std::sin(a * 12.9898 + b * 78.233 + ph)
+                             * 43758.5453;
+            return 2.0 * (v - std::floor(v)) - 1.0;
+        };
+
+        // One arc: an irregular segmented polyline from the nucleus outward,
+        // bending back toward centre (containment). Drawn as halo/body/core in a
+        // colour set by its depth pass and any thermal stress near its far end.
+        // pass: 0 rear, 1 middle, 2 front. `act` scales visibility (activation).
+        auto drawArc = [&](int seed, double ang0, int pass, double act,
+                           bool secondary) {
+            if (act <= 0.02) {
+                return;
             }
-            painter.restore();
+            const double reach = cavityR * (secondary ? 0.55 : 0.94);
+            const int segs = secondary ? T.arcSegments / 2 : T.arcSegments;
+            const double segLen = reach * T.arcStep / segs * 2.0;
+            // Build points.
+            QPointF pts[16];
+            int n = 0;
+            double px = c.x();
+            double py = c.y();
+            double heading = ang0;
+            double rNow = coreClear;
+            pts[n++] = QPointF(px, py);
+            for (int sIdx = 1; sIdx <= segs && n < 16; ++sIdx) {
+                const double sf = static_cast<double>(sIdx) / segs;
+                // Heading jitter: electrical direction changes, evolving in phase.
+                const double ph = flowPhase * 0.6 + seed * 1.7;
+                heading += T.arcJitter
+                           * wob(seed + sIdx * 0.7, pass + sf, ph);
+                // Containment: dampen the outward drift as we get far out, so the
+                // path curls rather than shooting straight (the radial clamp
+                // below is the hard limit; this is the soft bend).
+                const double pull = T.inwardPull * sf * sf;
+                heading *= (1.0 - pull * 0.5);
+                const double step = segLen * (0.7 + 0.5 * (1.0 - sf));
+                px += step * std::cos(heading);
+                py -= step * std::sin(heading);
+                // Radial clamp: never leave the cavity (machine forces it back).
+                const double dx = px - c.x();
+                const double dy = py - c.y();
+                double rr = std::sqrt(dx * dx + dy * dy);
+                const double rMax = reach * (1.0 - 0.15 * pull);
+                if (rr > rMax) {
+                    // Bend sharply along the boundary then turn inward.
+                    const double wallAng = std::atan2(-dy, dx);
+                    px = c.x() + rMax * std::cos(wallAng);
+                    py = c.y() - rMax * std::sin(wallAng);
+                    heading = wallAng + M_PI * 0.6;  // turn back inward
+                    rr = rMax;
+                }
+                rNow = rr;
+                pts[n++] = QPointF(px, py);
+            }
+            (void)rNow;
+            // Contact brightening: how close the far end got to the wall.
+            const double contact =
+                std::clamp((std::sqrt(std::pow(pts[n - 1].x() - c.x(), 2)
+                                      + std::pow(pts[n - 1].y() - c.y(), 2))
+                            / cavityR - 0.7)
+                               / 0.3,
+                           0.0, 1.0);
+            // Depth-pass colour + presence.
+            double baseAlpha;
+            QColor body;
+            double bodyW;
+            if (pass == 0) {  // rear
+                body = reactorPlasmaColor(thermal, true).darker(220);
+                baseAlpha = T.rearAlpha;
+                bodyW = std::max(1.0, cavityR * 0.012);
+            } else if (pass == 1) {  // middle
+                body = reactorPlasmaColor(thermal, true);
+                baseAlpha = T.midAlpha;
+                bodyW = std::max(1.2, cavityR * 0.018);
+            } else {  // front
+                body = reactorPlasmaColor(thermal, true).lighter(120);
+                baseAlpha = T.frontAlpha;
+                bodyW = std::max(1.4, cavityR * 0.022);
+            }
+            // Thermal stress: only near the far/contact end, only when hot.
+            const double stress =
+                thermal > T.stressTempThreshold
+                    ? (thermal - T.stressTempThreshold)
+                          / (1.0 - T.stressTempThreshold) * contact
+                    : 0.0;
+            if (stress > 0.02) {
+                QColor amber(196, 120, 44);
+                body = QColor(
+                    static_cast<int>(std::clamp(
+                        body.red() + (amber.red() - body.red()) * stress, 0.0,
+                        255.0)),
+                    static_cast<int>(std::clamp(
+                        body.green() + (amber.green() - body.green()) * stress,
+                        0.0, 255.0)),
+                    static_cast<int>(std::clamp(
+                        body.blue() + (amber.blue() - body.blue()) * stress, 0.0,
+                        255.0)));
+            }
+            QPainterPath path;
+            path.moveTo(pts[0]);
+            for (int k = 1; k < n; ++k) {
+                path.lineTo(pts[k]);
+            }
+            const double a = baseAlpha * act;
+            // (1) Halo -- extremely restrained, front pass only, removable.
+            if (pass == 2 && T.haloAlpha > 0.0) {
+                painter.setCompositionMode(QPainter::CompositionMode_Plus);
+                QColor halo = body.lighter(140);
+                halo.setAlphaF(static_cast<float>(
+                    std::clamp(T.haloAlpha * act * (0.6 + 0.6 * contact), 0.0,
+                               0.2)));
+                QPen hp(halo);
+                hp.setWidthF(bodyW * 3.0);
+                hp.setCapStyle(Qt::RoundCap);
+                hp.setJoinStyle(Qt::RoundJoin);
+                painter.setPen(hp);
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(path);
+            }
+            // (2) Saturated body -- the main visible electricity.
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            QColor bc = body;
+            bc.setAlphaF(static_cast<float>(
+                std::clamp(a * (0.7 + 0.3 * contact), 0.0, 0.95)));
+            QPen bp(bc);
+            bp.setWidthF(bodyW);
+            bp.setCapStyle(Qt::RoundCap);
+            bp.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(bp);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
+            // (3) Thin white-blue core -- front (and contact) only.
+            if (pass == 2) {
+                painter.setCompositionMode(QPainter::CompositionMode_Plus);
+                QColor coreC(226, 240, 255);
+                coreC.setAlphaF(static_cast<float>(
+                    std::clamp(T.coreLineAlpha * act * (0.5 + 0.5 * contact),
+                               0.0, 0.95)));
+                QPen cpn(coreC);
+                cpn.setWidthF(std::max(1.0, bodyW * 0.4));
+                cpn.setCapStyle(Qt::RoundCap);
+                painter.setPen(cpn);
+                painter.drawPath(path);
+                painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            }
+            // Faint cold-blue reflected light on the nearest inner metal when an
+            // arc's far end nears the wall (lighting only -- no geometry change).
+            if (contact > 0.5 && pass == 2) {
+                painter.setCompositionMode(QPainter::CompositionMode_Plus);
+                QColor refl = reactorPlasmaColor(thermal, true);
+                refl.setAlphaF(static_cast<float>(
+                    std::clamp(T.metalReflect * act * (contact - 0.5) * 2.0, 0.0,
+                               0.3)));
+                QRadialGradient rg(pts[n - 1], cavityR * 0.4);
+                rg.setColorAt(0.0, refl);
+                QColor re = refl;
+                re.setAlphaF(0.0f);
+                rg.setColorAt(1.0, re);
+                painter.setBrush(rg);
+                painter.setPen(Qt::NoPen);
+                painter.drawEllipse(pts[n - 1], cavityR * 0.4, cavityR * 0.4);
+                painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            }
+        };
 
-            // Core: tiny, violently bright, blue-white (additive).
-            const double coreR = std::min(
-                clr * 0.5,
-                std::max(2.0, starR * (T.coreRadius - T.coreShrink * thermal)));
+        // Draw the FIXED pool across depth passes, rear -> front. Each arc's
+        // activation ramps smoothly with utilization; higher-index arcs and
+        // secondaries need more load to appear (fade in, never pop).
+        const int passOf[6] = {0, 2, 1, 2, 0, 1};
+        for (int i = 0; i < T.primaryArcs; ++i) {
+            const double fi = static_cast<double>(i);
+            // Even angular seats, drifting slowly and irregularly in phase.
+            const double ang0 = (kTwoPi * i) / T.primaryArcs
+                                + 0.5 * std::sin(flowPhase * 0.2 + fi * 1.3);
+            // Smooth per-arc activation: base arcs always a little on; later
+            // arcs and secondaries fade in as load climbs.
+            const double gate = std::clamp(fi / T.primaryArcs, 0.0, 1.0);
+            const double act =
+                std::clamp((activation - gate * 0.5) / 0.5, 0.0, 1.0)
+                * (0.5 + 0.5 * activation);
+            drawArc(i, ang0, passOf[i], act, false);
+            // Secondary branches fade in with more load, from mid arcs.
+            for (int sB = 0; sB < T.secondaryMax; ++sB) {
+                const double sAct =
+                    std::clamp((activation - 0.45 - 0.15 * sB) / 0.4, 0.0, 1.0);
+                // Reconnection: some secondaries curl back toward the nucleus
+                // (deterministic in phase) instead of reaching outward, so the
+                // network occasionally reconnects rather than only branching.
+                const double recon =
+                    0.5 * (std::sin(flowPhase * 0.4 + fi * 2.0 + sB * 3.1) + 1.0);
+                const bool reconnect = recon < T.reconnectChance;
+                const double sAng = ang0 + (sB == 0 ? 0.6 : -0.7)
+                                    + (reconnect ? M_PI : 0.0)
+                                    + 0.3 * std::sin(flowPhase * 0.3 + fi + sB);
+                drawArc(100 + i * 3 + sB, sAng, 2, sAct * act, true);
+            }
+        }
+
+        // NUCLEUS: tiny, intensely bright blue-white, dead-centre, where the
+        // branches originate/reconnect. Capped under the text-clearance guard so
+        // the percentage stays readable. A dense point -- never an orb.
+        {
+            const double nucR = std::min(coreClear * 0.9,
+                                         cavityR * T.nucleusRadius);
             painter.setCompositionMode(QPainter::CompositionMode_Plus);
-            QRadialGradient pg(c, coreR);
-            QColor whiteBlue(232, 245, 255);
-            whiteBlue.setAlphaF(static_cast<float>(
-                std::clamp(0.85 + 0.12 * intensity, 0.0, 0.98)));
-            QColor tint = coreLight.lighter(150);
-            tint.setAlphaF(static_cast<float>(std::clamp(0.5 + 0.3 * intensity,
-                                                         0.0, 0.85)));
-            QColor he = coreLight;
-            he.setAlphaF(0.0f);
-            pg.setColorAt(0.0, whiteBlue);
-            pg.setColorAt(0.5, whiteBlue);
-            pg.setColorAt(0.8, tint);
-            pg.setColorAt(1.0, he);
+            QRadialGradient ng(c, std::max(2.0, nucR));
+            QColor nWhite(232, 245, 255);
+            nWhite.setAlphaF(static_cast<float>(
+                std::clamp(0.8 + 0.18 * activation, 0.0, 0.98)));
+            QColor nTint = coreLight.lighter(150);
+            nTint.setAlphaF(static_cast<float>(0.5 + 0.3 * activation));
+            QColor nEdge = coreLight;
+            nEdge.setAlphaF(0.0f);
+            ng.setColorAt(0.0, nWhite);
+            ng.setColorAt(0.45, nWhite);
+            ng.setColorAt(0.8, nTint);
+            ng.setColorAt(1.0, nEdge);
             painter.setPen(Qt::NoPen);
-            painter.setBrush(pg);
-            painter.drawEllipse(c, coreR, coreR);
+            painter.setBrush(ng);
+            painter.drawEllipse(c, std::max(2.0, nucR), std::max(2.0, nucR));
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         }
     }
@@ -898,22 +1079,9 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                         deg2(112), deg2(46));
     }
 
-    // Bloom: almost nothing -- a whisper of the star through the glass.
-    {
-        painter.setCompositionMode(QPainter::CompositionMode_Plus);
-        QRadialGradient g(c, R * T.glassInner);
-        QColor h0 = starLight;
-        h0.setAlphaF(static_cast<float>(
-            std::clamp(T.bloomAlpha * (0.5 + 0.5 * intensity), 0.0, 0.08)));
-        QColor h1 = starLight;
-        h1.setAlphaF(0.0f);
-        g.setColorAt(0.0, h0);
-        g.setColorAt(0.5, h0);
-        g.setColorAt(1.0, h1);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(g);
-        painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
-    }
+    // No giant radial bloom. Glow is per-arc only (the faint halo pass inside
+    // the electrical core), so the cavity stays dark and the electricity reads
+    // crisp. Removing the halo pass leaves the core still excellent.
 
     painter.setCompositionMode(prevMode);
 }
