@@ -564,6 +564,24 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         double reconnectChance = 0.5;  // how often arcs reconnect (phase-driven)
         double stressTempThreshold = 0.80;  // amber stress only above this
         double metalReflect = 0.35;    // faint cold-blue cast on nearby metal
+        // --- Behaviour mapping (utilization drives INDEPENDENT properties, not
+        //     one global speed; each arc also has its own deterministic
+        //     personality so the six never read as clones) ---
+        double evolSpeedBase = 0.32;   // arc topology evolution rate at idle
+        double evolSpeedLoad = 0.55;   // added evolution rate at full load (^0.7)
+        double speedVariance = 0.4;    // +/- per-arc speed personality
+        double thicknessLoad = 0.4;    // arcs thicken this much toward full load
+        double thicknessVariance = 0.3;  // +/- per-arc thickness personality
+        double reachLoad = 0.22;       // arcs reach farther out under load
+        double curvatureVariance = 0.5;  // +/- per-arc jitter/curvature character
+        double lifetimeBase = 0.10;    // envelope base rate (slow heartbeat)
+        double lifetimeVariance = 0.6; // per-arc lifetime-period spread
+        double lifetimeOverlap = 0.7;  // load raises envelope floor -> arcs
+                                       // overlap (dense) instead of speeding up
+        double nucleusPulseAmpIdle = 0.06;   // subtle size/bright pulse at idle
+        double nucleusPulseAmpLoad = 0.14;   // stronger (never large) at load
+        double nucleusPulseSpeedIdle = 0.5;  // slow heartbeat
+        double nucleusPulseSpeedLoad = 1.6;  // energised, never flashing
         // --- Material reflectivities (base gray the star light multiplies) ---
         double titaniumHi = 0.72;      // machined edge catching light
         double titaniumLo = 0.14;      // panel body in shadow
@@ -840,11 +858,15 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         // colour set by its depth pass and any thermal stress near its far end.
         // pass: 0 rear, 1 middle, 2 front. `act` scales visibility (activation).
         auto drawArc = [&](int seed, double ang0, int pass, double act,
-                           bool secondary) {
+                           bool secondary, double evolRate, double spdMul,
+                           double curveMul, double thickMul) {
             if (act <= 0.02) {
                 return;
             }
-            const double reach = cavityR * (secondary ? 0.55 : 0.94);
+            // Outward reach grows with load (arcs push toward containment).
+            const double loadReach = 1.0 + T.reachLoad * pulseC;
+            const double reach =
+                cavityR * (secondary ? 0.55 : 0.94) * loadReach;
             const int segs = secondary ? T.arcSegments / 2 : T.arcSegments;
             const double segLen = reach * T.arcStep / segs * 2.0;
             // Build points.
@@ -858,8 +880,10 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
             for (int sIdx = 1; sIdx <= segs && n < 16; ++sIdx) {
                 const double sf = static_cast<double>(sIdx) / segs;
                 // Heading jitter: electrical direction changes, evolving in phase.
-                const double ph = flowPhase * 0.6 + seed * 1.7;
-                heading += T.arcJitter
+                // Per-arc evolution: its own rate (load-scaled) and phase seat,
+                // so no two arcs crawl at the same pace.
+                const double ph = flowPhase * evolRate * spdMul + seed * 1.7;
+                heading += T.arcJitter * curveMul
                            * wob(seed + sIdx * 0.7, pass + sf, ph);
                 // Containment: dampen the outward drift as we get far out, so the
                 // path curls rather than shooting straight (the radial clamp
@@ -893,22 +917,26 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                             / cavityR - 0.7)
                                / 0.3,
                            0.0, 1.0);
-            // Depth-pass colour + presence.
+            // Depth-pass colour + presence. Arcs are noticeably thicker now
+            // (energy tearing through the volume), scaled by load and each arc's
+            // own thickness personality. The white centreline stays narrow.
+            const double thickK =
+                thickMul * (1.0 + T.thicknessLoad * pulseC);
             double baseAlpha;
             QColor body;
             double bodyW;
             if (pass == 0) {  // rear
                 body = reactorPlasmaColor(thermal, true).darker(220);
                 baseAlpha = T.rearAlpha;
-                bodyW = std::max(1.0, cavityR * 0.012);
+                bodyW = std::max(1.0, cavityR * 0.018 * thickK);
             } else if (pass == 1) {  // middle
                 body = reactorPlasmaColor(thermal, true);
                 baseAlpha = T.midAlpha;
-                bodyW = std::max(1.2, cavityR * 0.018);
+                bodyW = std::max(1.2, cavityR * 0.028 * thickK);
             } else {  // front
                 body = reactorPlasmaColor(thermal, true).lighter(120);
                 baseAlpha = T.frontAlpha;
-                bodyW = std::max(1.4, cavityR * 0.022);
+                bodyW = std::max(1.4, cavityR * 0.034 * thickK);
             }
             // Thermal stress: only near the far/contact end, only when hot.
             const double stress =
@@ -943,7 +971,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                     std::clamp(T.haloAlpha * act * (0.6 + 0.6 * contact), 0.0,
                                0.2)));
                 QPen hp(halo);
-                hp.setWidthF(bodyW * 3.0);
+                hp.setWidthF(bodyW * 2.2);
                 hp.setCapStyle(Qt::RoundCap);
                 hp.setJoinStyle(Qt::RoundJoin);
                 painter.setPen(hp);
@@ -970,7 +998,7 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
                     std::clamp(T.coreLineAlpha * act * (0.5 + 0.5 * contact),
                                0.0, 0.95)));
                 QPen cpn(coreC);
-                cpn.setWidthF(std::max(1.0, bodyW * 0.4));
+                cpn.setWidthF(std::clamp(bodyW * 0.28, 1.0, cavityR * 0.014));
                 cpn.setCapStyle(Qt::RoundCap);
                 painter.setPen(cpn);
                 painter.drawPath(path);
@@ -996,50 +1024,99 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
             }
         };
 
-        // Draw the FIXED pool across depth passes, rear -> front. Each arc's
-        // activation ramps smoothly with utilization; higher-index arcs and
-        // secondaries need more load to appear (fade in, never pop).
+        // Draw the FIXED pool across depth passes, rear -> front. Each arc has
+        // its own deterministic PERSONALITY (speed, curvature, thickness, phase
+        // seat, and a lifetime period), so the six never read as clones. A
+        // continuous lifetime ENVELOPE makes each arc wax and wane on its own
+        // slow, deliberately-desynchronised cycle: at idle some sit near-dormant
+        // for long stretches while one or two dominate; as load rises the
+        // envelope floor lifts (lifetimeOverlap) so more arcs are active at once
+        // -- dense, not fast-forwarded. Utilization also independently drives
+        // evolution speed, thickness, reach, branching and reconnection.
         const int passOf[6] = {0, 2, 1, 2, 0, 1};
+        // Load-driven evolution rate: gentle, non-linear (^0.7) so high load is
+        // more active without feeling like fast-forward.
+        const double evolRate =
+            T.evolSpeedBase + T.evolSpeedLoad * std::pow(pulseC, 0.7);
+        // Deliberately incommensurate lifetime multipliers -> peaks rarely align.
+        const double lifeMul[6] = {1.00, 1.37, 0.73, 1.61, 0.89, 1.19};
         for (int i = 0; i < T.primaryArcs; ++i) {
             const double fi = static_cast<double>(i);
-            // Even angular seats, drifting slowly and irregularly in phase.
+            // Per-arc personality, deterministic from the seed.
+            const double pSpeed =
+                1.0 + T.speedVariance * wob(fi, 1.0, 0.0);
+            const double pCurve =
+                1.0 + T.curvatureVariance * wob(fi, 2.0, 0.0);
+            const double pThick =
+                1.0 + T.thicknessVariance * wob(fi, 3.0, 0.0);
+            const double pSeat = wob(fi, 4.0, 0.0);  // phase-seat offset [-1,1]
+            // Lifetime envelope: continuous cosine on this arc's own slow period.
+            // Floor lifts with load so arcs overlap (dense) at high CPU.
+            const double lifePeriod =
+                T.lifetimeBase
+                * (1.0 + T.lifetimeVariance * (lifeMul[i % 6] - 1.0));
+            const double envRaw =
+                0.5 * (std::sin(flowPhase * lifePeriod + pSeat * 6.2831) + 1.0);
+            const double floor = T.lifetimeOverlap * pulseC;
+            const double envelope = std::clamp(floor + (1.0 - floor) * envRaw,
+                                               0.0, 1.0);
+            // Angular seat: individual, drifting; less radial symmetry.
             const double ang0 = (kTwoPi * i) / T.primaryArcs
-                                + 0.5 * std::sin(flowPhase * 0.2 + fi * 1.3);
-            // Smooth per-arc activation: base arcs always a little on; later
-            // arcs and secondaries fade in as load climbs.
+                                + 0.6 * pSeat
+                                + 0.5 * std::sin(flowPhase * 0.2 * pSpeed
+                                                 + fi * 1.3);
+            // Activation = load gating * this arc's lifetime envelope.
             const double gate = std::clamp(fi / T.primaryArcs, 0.0, 1.0);
-            const double act =
+            const double loadAct =
                 std::clamp((activation - gate * 0.5) / 0.5, 0.0, 1.0)
                 * (0.5 + 0.5 * activation);
-            drawArc(i, ang0, passOf[i], act, false);
-            // Secondary branches fade in with more load, from mid arcs.
+            const double act = loadAct * envelope;
+            drawArc(i, ang0, passOf[i], act, false, evolRate, pSpeed, pCurve,
+                    pThick);
+            // Secondary branches: more common under load, gated by the parent's
+            // envelope so they belong to the same living structure.
             for (int sB = 0; sB < T.secondaryMax; ++sB) {
                 const double sAct =
                     std::clamp((activation - 0.45 - 0.15 * sB) / 0.4, 0.0, 1.0);
-                // Reconnection: some secondaries curl back toward the nucleus
-                // (deterministic in phase) instead of reaching outward, so the
-                // network occasionally reconnects rather than only branching.
+                // Reconnection frequency rises with load.
+                const double reconThresh =
+                    T.reconnectChance * (0.6 + 0.6 * pulseC);
                 const double recon =
-                    0.5 * (std::sin(flowPhase * 0.4 + fi * 2.0 + sB * 3.1) + 1.0);
-                const bool reconnect = recon < T.reconnectChance;
+                    0.5 * (std::sin(flowPhase * 0.4 * pSpeed + fi * 2.0
+                                    + sB * 3.1)
+                           + 1.0);
+                const bool reconnect = recon < reconThresh;
                 const double sAng = ang0 + (sB == 0 ? 0.6 : -0.7)
                                     + (reconnect ? M_PI : 0.0)
-                                    + 0.3 * std::sin(flowPhase * 0.3 + fi + sB);
-                drawArc(100 + i * 3 + sB, sAng, 2, sAct * act, true);
+                                    + 0.3 * std::sin(flowPhase * 0.3 * pSpeed
+                                                     + fi + sB);
+                drawArc(100 + i * 3 + sB, sAng, 2, sAct * act, true, evolRate,
+                        pSpeed, pCurve * 1.2, pThick * 0.8);
             }
         }
 
         // NUCLEUS: tiny, intensely bright blue-white, dead-centre, where the
-        // branches originate/reconnect. Capped under the text-clearance guard so
-        // the percentage stays readable. A dense point -- never an orb.
+        // branches originate/reconnect. A small living PULSE energises it from
+        // the centre: slow faint heartbeat at idle, stronger/faster (never
+        // flashing, never large) under load. Capped under the text-clearance
+        // guard so the percentage stays readable. A dense seed -- never an orb.
         {
+            const double pulseAmp =
+                T.nucleusPulseAmpIdle
+                + (T.nucleusPulseAmpLoad - T.nucleusPulseAmpIdle) * pulseC;
+            const double pulseSpeed =
+                T.nucleusPulseSpeedIdle
+                + (T.nucleusPulseSpeedLoad - T.nucleusPulseSpeedIdle) * pulseC;
+            const double beat = std::sin(flowPhase * pulseSpeed);
             const double nucR = std::min(coreClear * 0.9,
-                                         cavityR * T.nucleusRadius);
+                                         cavityR * T.nucleusRadius)
+                                * (1.0 + pulseAmp * beat);
             painter.setCompositionMode(QPainter::CompositionMode_Plus);
             QRadialGradient ng(c, std::max(2.0, nucR));
             QColor nWhite(232, 245, 255);
             nWhite.setAlphaF(static_cast<float>(
-                std::clamp(0.8 + 0.18 * activation, 0.0, 0.98)));
+                std::clamp(0.8 + 0.18 * activation + 0.1 * pulseAmp * beat, 0.0,
+                           0.98)));
             QColor nTint = coreLight.lighter(150);
             nTint.setAlphaF(static_cast<float>(0.5 + 0.3 * activation));
             QColor nEdge = coreLight;
