@@ -8,7 +8,8 @@
 #include <QPaintEvent>
 #include <QSizePolicy>
 #include <QString>
-#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 
 #include "deck/instruments/CpuInstrumentLayout.hpp"  // positionalFraction
 #include "deck/instruments/InstrumentRenderModel.hpp"
@@ -50,12 +51,9 @@ QString NetworkInstrument::formatRate(double bytesPerSec, QString& suffixOut) {
 }
 
 NetworkInstrument::NetworkInstrument(InstrumentSizeMode mode, QWidget* parent)
-    : QWidget(parent), mode_(mode), transitionTimer_(new QTimer(this)) {
+    : QWidget(parent), mode_(mode) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     applySizePolicyForMode();
-    transitionTimer_->setInterval(16);
-    connect(transitionTimer_, &QTimer::timeout, this,
-            &NetworkInstrument::advanceInterpolation);
 }
 
 NetworkInstrument::~NetworkInstrument() = default;
@@ -101,8 +99,8 @@ void NetworkInstrument::setModel(const NetworkInstrumentModel& model) {
         displayed_.receiveBytesPerSec = target_.receiveBytesPerSec;
         displayed_.transmitBytesPerSec = target_.transmitBytesPerSec;
         update();
-    } else if (!transitionTimer_->isActive()) {
-        transitionTimer_->start();
+    } else if (clock_ != nullptr) {
+        clock_->requestAnimation();
     }
 }
 
@@ -115,7 +113,8 @@ bool NetworkInstrument::interpolationSettled() const {
     return dRx < kRateEpsilon && dTx < kRateEpsilon;
 }
 
-void NetworkInstrument::advanceInterpolation() {
+void NetworkInstrument::advance(double /*deltaSeconds*/,
+                              double /*clockSeconds*/) {
     constexpr double kEase = 0.22;
     // Display easing only, following the established CPU/GPU/Storage pattern. The
     // raw telemetry (target_) is untouched and truthful; no averaging/filtering/
@@ -127,7 +126,6 @@ void NetworkInstrument::advanceInterpolation() {
     if (interpolationSettled()) {
         displayed_.receiveBytesPerSec = target_.receiveBytesPerSec;
         displayed_.transmitBytesPerSec = target_.transmitBytesPerSec;
-        transitionTimer_->stop();
     }
     update();
 }
@@ -184,6 +182,38 @@ void NetworkInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.glowStrength = 1.0;
 
     InstrumentRenderer::paint(painter, rect(), rm);
+}
+
+
+void NetworkInstrument::setAnimationClock(AnimationClock* clock) {
+    clock_ = clock;
+    if (clock_ != nullptr && isVisible() && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+    }
+}
+
+bool NetworkInstrument::wantsContinuousAnimation() const {
+    return !interpolationSettled();
+}
+
+void NetworkInstrument::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (clock_ != nullptr && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+        if (!interpolationSettled()) {
+            clock_->requestAnimation();
+        }
+    }
+}
+
+void NetworkInstrument::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    if (clock_ != nullptr && subscribed_) {
+        clock_->unsubscribe(this);
+        subscribed_ = false;
+    }
 }
 
 }  // namespace darkspark::deck::instruments

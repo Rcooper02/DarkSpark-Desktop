@@ -8,7 +8,8 @@
 #include <QPaintEvent>
 #include <QSizePolicy>
 #include <QString>
-#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 
 #include "deck/instruments/CpuInstrumentLayout.hpp"  // positionalFraction
 #include "deck/instruments/InstrumentRenderModel.hpp"
@@ -37,12 +38,9 @@ QString StorageInstrument::formatSecondaryLine(const StorageInstrumentModel& m) 
 }
 
 StorageInstrument::StorageInstrument(InstrumentSizeMode mode, QWidget* parent)
-    : QWidget(parent), mode_(mode), transitionTimer_(new QTimer(this)) {
+    : QWidget(parent), mode_(mode) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     applySizePolicyForMode();
-    transitionTimer_->setInterval(16);
-    connect(transitionTimer_, &QTimer::timeout, this,
-            &StorageInstrument::advanceInterpolation);
 }
 
 StorageInstrument::~StorageInstrument() = default;
@@ -97,8 +95,8 @@ void StorageInstrument::setModel(const StorageInstrumentModel& model) {
         displayed_.usedBytes = target_.usedBytes;
         displayed_.totalBytes = target_.totalBytes;
         update();
-    } else if (!transitionTimer_->isActive()) {
-        transitionTimer_->start();
+    } else if (clock_ != nullptr) {
+        clock_->requestAnimation();
     }
 }
 
@@ -119,7 +117,8 @@ bool StorageInstrument::interpolationSettled() const {
            && dRead < kRateEpsilon && dWrite < kRateEpsilon;
 }
 
-void StorageInstrument::advanceInterpolation() {
+void StorageInstrument::advance(double /*deltaSeconds*/,
+                              double /*clockSeconds*/) {
     constexpr double kEase = 0.22;
     displayed_.utilizationPercent +=
         (target_.utilizationPercent - displayed_.utilizationPercent) * kEase;
@@ -138,7 +137,6 @@ void StorageInstrument::advanceInterpolation() {
         displayed_.totalBytes = target_.totalBytes;
         displayed_.readBytesPerSec = target_.readBytesPerSec;
         displayed_.writeBytesPerSec = target_.writeBytesPerSec;
-        transitionTimer_->stop();
     }
     update();
 }
@@ -199,6 +197,38 @@ void StorageInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.glowStrength = 1.0;
 
     InstrumentRenderer::paint(painter, rect(), rm);
+}
+
+
+void StorageInstrument::setAnimationClock(AnimationClock* clock) {
+    clock_ = clock;
+    if (clock_ != nullptr && isVisible() && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+    }
+}
+
+bool StorageInstrument::wantsContinuousAnimation() const {
+    return !interpolationSettled();
+}
+
+void StorageInstrument::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (clock_ != nullptr && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+        if (!interpolationSettled()) {
+            clock_->requestAnimation();
+        }
+    }
+}
+
+void StorageInstrument::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    if (clock_ != nullptr && subscribed_) {
+        clock_->unsubscribe(this);
+        subscribed_ = false;
+    }
 }
 
 }  // namespace darkspark::deck::instruments

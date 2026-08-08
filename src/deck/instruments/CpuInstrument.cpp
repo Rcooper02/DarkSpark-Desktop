@@ -7,30 +7,33 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QSizePolicy>
-#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 #include <QString>
+#include <QLoggingCategory>
 
 #include "deck/instruments/CpuInstrumentLayout.hpp"
 #include "deck/instruments/InstrumentRenderer.hpp"
 #include "deck/instruments/InstrumentRenderModel.hpp"
+#include "deck/instruments/PersonalityMapping.hpp"
 #include "themes/LegacyTheme.hpp"
 
 namespace darkspark::deck::instruments {
+
+namespace {
+// Temporary personality diagnostics: enable with
+// QT_LOGGING_RULES="darkspark.personality=true". Shows the full chain per frame.
+Q_LOGGING_CATEGORY(lcPersonality, "darkspark.personality")
+}  // namespace
 
 using themes::LegacyTheme;
 
 
 
 CpuInstrument::CpuInstrument(InstrumentSizeMode mode, QWidget* parent)
-    : QWidget(parent), mode_(mode), transitionTimer_(new QTimer(this)) {
+    : QWidget(parent), mode_(mode) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     applySizePolicyForMode();
-    // ~60fps ticks while a transition is in progress; the timer is stopped
-    // whenever the displayed model has reached the target, so there is no idle
-    // animation -- motion happens only between telemetry values.
-    transitionTimer_->setInterval(16);
-    connect(transitionTimer_, &QTimer::timeout, this,
-            &CpuInstrument::advanceInterpolation);
 }
 
 void CpuInstrument::applySizePolicyForMode() {
@@ -84,8 +87,8 @@ void CpuInstrument::setModel(const CpuInstrumentModel& model) {
         displayed_.utilizationPercent = target_.utilizationPercent;
         displayed_.temperatureCelsius = target_.temperatureCelsius;
         update();
-    } else if (!transitionTimer_->isActive()) {
-        transitionTimer_->start();
+    } else if (clock_ != nullptr) {
+        clock_->requestAnimation();
     }
 }
 
@@ -97,7 +100,7 @@ bool CpuInstrument::interpolationSettled() const {
     return du < 0.1 && dt < 0.1;
 }
 
-void CpuInstrument::advanceInterpolation() {
+void CpuInstrument::advance(double deltaSeconds, double /*clockSeconds*/) {
     // Exponential ease toward the target: a fixed fraction of the remaining
     // distance each tick gives a smooth, framerate-tolerant approach with an
     // obvious future animation path. No overshoot, no idle motion.
@@ -110,8 +113,30 @@ void CpuInstrument::advanceInterpolation() {
     if (interpolationSettled()) {
         displayed_.utilizationPercent = target_.utilizationPercent;
         displayed_.temperatureCelsius = target_.temperatureCelsius;
-        transitionTimer_->stop();
     }
+
+    // Personality (separate concern from interpolation, same clock): map the
+    // DISPLAYED, already-eased values into neutral render params. Reads copies
+    // only -- never mutates telemetry or the model.
+    personality::PersonalityInputs pin;
+    pin.activity = displayed_.utilizationPercent / 100.0;
+    pin.activityAvailable =
+        displayed_.utilizationAvailability != ValueAvailability::Absent;
+    pin.temperatureC = displayed_.temperatureCelsius;
+    pin.temperatureAvailable =
+        displayed_.temperatureAvailability != ValueAvailability::Absent;
+    personalityParams_ =
+        personality::advance(personality_, pin, deltaSeconds, personalityState_);
+
+    qCDebug(lcPersonality).noquote().nospace()
+        << "util=" << displayed_.utilizationPercent
+        << " temp=" << displayed_.temperatureCelsius
+        << " | ambient=" << personalityParams_.ambientIntensity
+        << " pulse=" << personalityParams_.pulse
+        << " flow=" << personalityParams_.flowPhase
+        << " warmth=" << personalityParams_.warmth
+        << " breathePhase=" << personalityState_.breathePhase;
+
     update();
 }
 
@@ -201,11 +226,57 @@ void CpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.title = title_;
     rm.awaitingTelemetry = awaitingTelemetry_;
     rm.mode = mode_;
+    // Personality render params (neutral => reproduces the pre-personality
+    // look). The renderer consumes these as subsystem-agnostic scalars.
+    rm.personality = personalityParams_;
     rm.accents = InstrumentAccents{LegacyTheme::accentCyan(),
                                    LegacyTheme::accentPurple()};
     rm.glowStrength = 1.0;  // Idle; interaction growth is a future data change.
 
     InstrumentRenderer::paint(painter, rect(), rm);
+}
+
+
+void CpuInstrument::setAnimationClock(AnimationClock* clock) {
+    clock_ = clock;
+    if (clock_ != nullptr && isVisible() && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+    }
+}
+
+void CpuInstrument::setPersonality(const InstrumentPersonality& personality) {
+    personality_ = personality;
+    // Re-prime so smoothed values jump to their first target rather than easing
+    // up from the previous personality's state.
+    personalityState_ = PersonalityState{};
+    if (clock_ != nullptr && isVisible()) {
+        clock_->requestAnimation();
+    }
+}
+
+bool CpuInstrument::wantsContinuousAnimation() const {
+    // Tick while interpolating OR while the personality has live idle motion
+    // (e.g. breathing), so "The Core" stays subtly alive at rest.
+    return !interpolationSettled()
+           || personality::hasIdleMotion(personality_);
+}
+
+void CpuInstrument::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (clock_ != nullptr && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+        clock_->requestAnimation();
+    }
+}
+
+void CpuInstrument::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    if (clock_ != nullptr && subscribed_) {
+        clock_->unsubscribe(this);
+        subscribed_ = false;
+    }
 }
 
 }  // namespace darkspark::deck::instruments

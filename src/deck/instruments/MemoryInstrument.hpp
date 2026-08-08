@@ -4,11 +4,13 @@
 
 #include <QWidget>
 
+#include "deck/instruments/AnimationClock.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "deck/instruments/MemoryInstrumentModel.hpp"
 
 class QPaintEvent;
-class QTimer;
+class QShowEvent;
+class QHideEvent;
 
 namespace darkspark::deck::instruments {
 
@@ -30,7 +32,7 @@ namespace darkspark::deck::instruments {
 ///
 /// Motion is limited to smooth value interpolation between telemetry updates,
 /// matching CPU and GPU: dormant except during a transition.
-class MemoryInstrument : public QWidget {
+class MemoryInstrument : public QWidget, public AnimationTickable {
     Q_OBJECT
 
 public:
@@ -38,6 +40,16 @@ public:
     ~MemoryInstrument() override;
 
     void setModel(const MemoryInstrumentModel& model);
+
+    /// Wire the shared animation clock. The instrument subscribes/unsubscribes
+    /// based on visibility; interpolation and (CPU only) personality motion are
+    /// driven by this clock instead of a per-instrument timer.
+    void setAnimationClock(AnimationClock* clock);
+
+    // AnimationTickable: advance interpolation (and personality, CPU only) by
+    // one frame; report whether continued ticks are needed.
+    void advance(double deltaSeconds, double clockSeconds) override;
+    [[nodiscard]] bool wantsContinuousAnimation() const override;
     [[nodiscard]] MemoryInstrumentModel model() const { return target_; }
 
     void setSizeMode(InstrumentSizeMode mode);
@@ -59,6 +71,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
 
 private:
     void advanceInterpolation();
@@ -68,7 +82,11 @@ private:
     InstrumentSizeMode mode_;
     MemoryInstrumentModel target_{};
     MemoryInstrumentModel displayed_{};
-    QTimer* transitionTimer_;
+    // Shared animation clock (owned by Application). Replaces the former
+    // per-instrument QTimer. The instrument subscribes while visible and
+    // unsubscribes when hidden, so hidden instruments do no animation work.
+    AnimationClock* clock_ = nullptr;
+    bool subscribed_ = false;
 };
 
 }  // namespace darkspark::deck::instruments

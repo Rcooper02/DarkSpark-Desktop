@@ -7,7 +7,8 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QSizePolicy>
-#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 
 #include "deck/instruments/InstrumentRenderModel.hpp"
 #include "deck/instruments/CpuInstrumentLayout.hpp"
@@ -35,12 +36,9 @@ namespace {
 }  // namespace
 
 GpuInstrument::GpuInstrument(InstrumentSizeMode mode, QWidget* parent)
-    : QWidget(parent), mode_(mode), transitionTimer_(new QTimer(this)) {
+    : QWidget(parent), mode_(mode) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     applySizePolicyForMode();
-    transitionTimer_->setInterval(16);
-    connect(transitionTimer_, &QTimer::timeout, this,
-            &GpuInstrument::advanceInterpolation);
 }
 
 GpuInstrument::~GpuInstrument() = default;
@@ -75,8 +73,8 @@ void GpuInstrument::setModel(const GpuInstrumentModel& model) {
         displayed_.utilizationPercent = target_.utilizationPercent;
         displayed_.temperatureCelsius = target_.temperatureCelsius;
         update();
-    } else if (!transitionTimer_->isActive()) {
-        transitionTimer_->start();
+    } else if (clock_ != nullptr) {
+        clock_->requestAnimation();
     }
 }
 
@@ -88,7 +86,8 @@ bool GpuInstrument::interpolationSettled() const {
     return du < 0.1 && dt < 0.1;
 }
 
-void GpuInstrument::advanceInterpolation() {
+void GpuInstrument::advance(double /*deltaSeconds*/,
+                              double /*clockSeconds*/) {
     constexpr double kEase = 0.22;
     displayed_.utilizationPercent +=
         (target_.utilizationPercent - displayed_.utilizationPercent) * kEase;
@@ -97,7 +96,6 @@ void GpuInstrument::advanceInterpolation() {
     if (interpolationSettled()) {
         displayed_.utilizationPercent = target_.utilizationPercent;
         displayed_.temperatureCelsius = target_.temperatureCelsius;
-        transitionTimer_->stop();
     }
     update();
 }
@@ -163,6 +161,41 @@ void GpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.glowStrength = 1.0;
 
     InstrumentRenderer::paint(painter, rect(), rm);
+}
+
+
+void GpuInstrument::setAnimationClock(AnimationClock* clock) {
+    clock_ = clock;
+    // If already visible when wired, subscribe now.
+    if (clock_ != nullptr && isVisible() && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+    }
+}
+
+bool GpuInstrument::wantsContinuousAnimation() const {
+    // This instrument animates only to complete an in-flight interpolation; once
+    // settled it needs no ticks (no idle personality motion in V1).
+    return !interpolationSettled();
+}
+
+void GpuInstrument::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (clock_ != nullptr && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+        if (!interpolationSettled()) {
+            clock_->requestAnimation();
+        }
+    }
+}
+
+void GpuInstrument::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    if (clock_ != nullptr && subscribed_) {
+        clock_->unsubscribe(this);
+        subscribed_ = false;
+    }
 }
 
 }  // namespace darkspark::deck::instruments

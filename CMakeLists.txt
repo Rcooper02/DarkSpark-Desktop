@@ -143,6 +143,11 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/InstrumentRenderer.cpp
     src/deck/instruments/InstrumentRenderer.hpp
     src/deck/instruments/InstrumentRenderModel.hpp
+    src/deck/instruments/AnimationClock.cpp
+    src/deck/instruments/AnimationClock.hpp
+    src/deck/instruments/InstrumentPersonality.hpp
+    src/deck/instruments/PersonalityMapping.cpp
+    src/deck/instruments/PersonalityMapping.hpp
     src/deck/instruments/CpuInstrumentLayout.cpp
     src/deck/instruments/CpuInstrumentLayout.hpp
     src/deck/instruments/CpuInstrument.cpp
@@ -315,6 +320,41 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-cooling-normalization-test
         COMMAND darkspark-cooling-normalization-test
+    )
+
+    # Personality mapping test: pure continuous mappings -- clamping, smoothing,
+    # monotonicity, warmth continuity, breathing bounds, decay on unavailable
+    # telemetry, phase wrapping, determinism, and neutral-reproduces-neutral.
+    # Qt-free.
+    add_executable(darkspark-personality-mapping-test
+        tests/deck/instruments/PersonalityMappingTest.cpp
+        src/deck/instruments/PersonalityMapping.cpp
+    )
+    target_include_directories(darkspark-personality-mapping-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-personality-mapping-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-personality-mapping-test
+        COMMAND darkspark-personality-mapping-test
+    )
+
+    # Animation clock test: subscription, one-driver ticking, hidden/unsubscribed
+    # clients do not advance, pause halts, and the clock stops when no subscriber
+    # wants animation. Links Qt6::Core for QTimer/QObject; own main() with a
+    # QCoreApplication event loop pumped deterministically.
+    add_executable(darkspark-animation-clock-test
+        tests/deck/instruments/AnimationClockTest.cpp
+        src/deck/instruments/AnimationClock.cpp
+    )
+    target_include_directories(darkspark-animation-clock-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-animation-clock-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-animation-clock-test
+        COMMAND darkspark-animation-clock-test
     )
 
     # Cooling service test: provider aggregation + role selection + Fresh/Stale/

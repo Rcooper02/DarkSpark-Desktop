@@ -19,6 +19,24 @@ using themes::LegacyTheme;
 
 namespace {
 
+// Warm-shift an accent toward a warmer hue by `warmth` in [0,1]. At warmth 0 the
+// color is returned unchanged (neutral-safe). Subsystem-agnostic: the renderer
+// applies whatever warmth the model carries, without knowing its source.
+QColor applyWarmth(const QColor& accent, double warmth) {
+    if (warmth <= 0.0) {
+        return accent;
+    }
+    const double w = warmth > 1.0 ? 1.0 : warmth;
+    // Shift toward a warm amber: raise red, ease green slightly, lower blue.
+    QColor out = accent;
+    out.setRedF(static_cast<float>(std::clamp(accent.redF() + 0.45 * w, 0.0, 1.0)));
+    out.setGreenF(static_cast<float>(
+        std::clamp(accent.greenF() + 0.12 * w, 0.0, 1.0)));
+    out.setBlueF(static_cast<float>(
+        std::clamp(accent.blueF() - 0.30 * w, 0.0, 1.0)));
+    return out;
+}
+
 void paintGraduationTicks(QPainter& painter, const CpuInstrumentLayout& layout,
                           const QColor& accent) {
     const RingGeometry& ring = layout.utilizationRing;
@@ -77,7 +95,8 @@ void paintGraduationTicks(QPainter& painter, const CpuInstrumentLayout& layout,
 
 void paintSegmentedRing(QPainter& painter, const CpuInstrumentLayout& layout,
                         const RingGeometry& ring, const QColor& accent,
-                        double glowStrength) {
+                        double glowStrength, double flowPhase = 0.0,
+                        double flowStrength = 0.0) {
     if (!ring.present || ring.segments <= 0) {
         return;
     }
@@ -150,8 +169,10 @@ void paintSegmentedRing(QPainter& painter, const CpuInstrumentLayout& layout,
             // filled with a radial gradient (bright core fading to darker edges)
             // so each segment reads like illuminated glass rather than a flat
             // fill. The bloom scales with interaction state.
+            // Neutral glow (1.0) still yields the original 0.28; personality
+            // lifts it modestly. Restrained so motion leads, not brightness.
             const double bloomAlpha =
-                std::clamp(0.28 * glowStrength, 0.0, 0.7);
+                std::clamp(0.28 * glowStrength, 0.0, 0.55);
             QColor bloom = accent;
             bloom.setAlphaF(static_cast<float>(bloomAlpha));
 
@@ -180,7 +201,18 @@ void paintSegmentedRing(QPainter& painter, const CpuInstrumentLayout& layout,
             const double mA = midDeg * M_PI / 180.0;
             const QPointF segMid(center.x() + midRad * std::cos(mA),
                                  center.y() - midRad * std::sin(mA));
-            QColor coreBright = accent.lighter(155);
+            // Traveling energy flow: a brightness wave sweeps along the lit
+            // conduit. Each segment's phase along the arc is offset so the peak
+            // moves with flowPhase. At flowStrength 0 the highlight vanishes and
+            // the segment is exactly its original appearance (neutral-safe).
+            const double segFrac =
+                static_cast<double>(i) / static_cast<double>(ring.segments);
+            const double wave =
+                0.5 * (std::sin(flowPhase - segFrac * 6.283185307179586 * 2.0)
+                       + 1.0);
+            const double flowLift = flowStrength * wave;  // [0, flowStrength]
+            const int brighten = 155 + static_cast<int>(std::lround(120.0 * flowLift));
+            QColor coreBright = accent.lighter(brighten);
             QColor coreEdge = accent.darker(210);
             QRadialGradient grad(segMid, ring.thickness * 0.9);
             grad.setColorAt(0.0, coreBright);
@@ -348,24 +380,100 @@ void paintChamber(QPainter& painter, const CpuInstrumentLayout& layout) {
 /// future: frames, brackets, registration marks.)
 void renderStructureLayer(QPainter& painter, const CpuInstrumentLayout& layout,
                           const InstrumentRenderModel& model) {
+    // STRUCTURE stays mostly static; personality touches it only as a subtle
+    // warm-shift of the graduation ticks. At warmth 0 this is a no-op, so the
+    // structure is byte-identical to before.
     paintChamber(painter, layout);
-    paintGraduationTicks(painter, layout, model.accents.utilization);
+    paintGraduationTicks(painter, layout,
+                         applyWarmth(model.accents.utilization,
+                                     model.personality.warmth));
 }
 
 /// ENERGY -- makes the instrument feel alive. The segmented conduits with their
 /// bloom and fiber-optic cores. (In future: breathing, pulses, directional
 /// flow.) Outer/primary conduit first, then inner/secondary where present.
+
+// Reactor core: the CENTER pulse that leads The Core's personality. A radial
+// glow at the instrument center whose radius and intensity breathe with the
+// pulse + ambient params. Drawn in the Energy layer (behind the Information
+// text). Subsystem-agnostic: it reacts only to neutral scalar params and to the
+// accent color, never to subsystem identity. At pulse 0 and ambient 0 it draws
+// nothing, so neutral instruments are unaffected.
+void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
+                      const QColor& accent, double pulse, double ambient,
+                      double warmth) {
+    const double drive = std::clamp(pulse + 0.35 * ambient, 0.0, 1.0);
+    if (drive <= 0.001) {
+        return;
+    }
+    const RingGeometry& innermost = layout.hasInnerRing
+                                        ? layout.temperatureRing
+                                        : layout.utilizationRing;
+    const double chamberR = innermost.outerRadius - innermost.thickness;
+    const QPointF c(layout.centerX, layout.centerY);
+
+    // The core glow expands with the pulse: a soft radial gradient from a warm-
+    // shiftable accent center out to a fraction of the chamber radius.
+    const double coreR = chamberR * (0.35 + 0.45 * drive);
+    QColor core = accent;
+    if (warmth > 0.0) {
+        const double w = warmth > 1.0 ? 1.0 : warmth;
+        core.setRedF(static_cast<float>(std::clamp(core.redF() + 0.5 * w, 0.0, 1.0)));
+        core.setGreenF(
+            static_cast<float>(std::clamp(core.greenF() + 0.12 * w, 0.0, 1.0)));
+        core.setBlueF(static_cast<float>(std::clamp(core.blueF() - 0.4 * w, 0.0, 1.0)));
+    }
+    QRadialGradient g(c, coreR);
+    QColor inner = core;
+    inner.setAlphaF(static_cast<float>(std::clamp(0.45 * drive, 0.0, 0.6)));
+    QColor mid = core;
+    mid.setAlphaF(static_cast<float>(std::clamp(0.18 * drive, 0.0, 0.3)));
+    QColor outer = core;
+    outer.setAlphaF(0.0f);
+    g.setColorAt(0.0, inner);
+    g.setColorAt(0.55, mid);
+    g.setColorAt(1.0, outer);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(g);
+    painter.drawEllipse(c, coreR, coreR);
+}
+
 void renderEnergyLayer(QPainter& painter, const CpuInstrumentLayout& layout,
                        const InstrumentRenderModel& model) {
-    paintSegmentedRing(painter, layout, layout.utilizationRing,
-                       model.accents.utilization, model.glowStrength);
+    // ENERGY is the primary personality surface. Personality reaches the
+    // renderer ONLY as neutral scalars on the model; there is no subsystem
+    // logic here. At neutral params (ambient 0, pulse 0, warmth 0) the effective
+    // glow is exactly model.glowStrength and the accents are unchanged, so the
+    // output is byte-identical to the pre-personality renderer.
+    // Personality energy gives the conduits a RESTRAINED brightness lift --
+    // brightness supports the motion (reactor pulse, flow, breathing) rather
+    // than carrying the personality by itself. At neutral (energy 0),
+    // effectiveGlow == glowStrength, so neutral instruments are byte-identical.
+    const double energy = std::clamp(
+        model.personality.ambientIntensity + model.personality.pulse, 0.0, 1.0);
+    const double effectiveGlow = model.glowStrength * (1.0 + 0.6 * energy);
+    const QColor utilAccent =
+        applyWarmth(model.accents.utilization, model.personality.warmth);
+    const QColor tempAccent =
+        applyWarmth(model.accents.temperature, model.personality.warmth);
+
+    // Reactor core pulse first (behind the conduits): the lead motion.
+    paintReactorCore(painter, layout, utilAccent, model.personality.pulse,
+                     model.personality.ambientIntensity,
+                     model.personality.warmth);
+
+    const double flowStrength = std::clamp(model.personality.ambientIntensity,
+                                          0.0, 1.0);
+    paintSegmentedRing(painter, layout, layout.utilizationRing, utilAccent,
+                       effectiveGlow, model.personality.flowPhase, flowStrength);
     // The inner (secondary) conduit is drawn only when the instrument declares
     // it has one. A single-ring instrument (e.g. Cooling V1) sets
     // hasSecondaryRing false and no inner ring is painted. The renderer acts on
     // the flag, never on subsystem identity.
     if (model.hasSecondaryRing) {
-        paintSegmentedRing(painter, layout, layout.temperatureRing,
-                           model.accents.temperature, model.glowStrength);
+        paintSegmentedRing(painter, layout, layout.temperatureRing, tempAccent,
+                           effectiveGlow, model.personality.flowPhase,
+                           flowStrength);
     }
 }
 

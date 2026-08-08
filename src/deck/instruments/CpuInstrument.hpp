@@ -6,11 +6,14 @@
 #include <QWidget>
 
 #include "deck/instruments/CpuInstrumentModel.hpp"
+#include "deck/instruments/AnimationClock.hpp"
+#include "deck/instruments/InstrumentPersonality.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "deck/instruments/InstrumentState.hpp"
 
 class QPaintEvent;
-class QTimer;
+class QShowEvent;
+class QHideEvent;
 
 namespace darkspark::deck::instruments {
 
@@ -45,13 +48,27 @@ namespace darkspark::deck::instruments {
 /// (monochrome, swapped accents, user-selected or theme-controlled colors).
 ///
 /// Ownership: a QWidget owned by its Qt parent. Threading: GUI thread only.
-class CpuInstrument : public QWidget {
+class CpuInstrument : public QWidget, public AnimationTickable {
     Q_OBJECT
 
 public:
     explicit CpuInstrument(InstrumentSizeMode mode, QWidget* parent = nullptr);
 
     void setModel(const CpuInstrumentModel& model);
+
+    /// Wire the shared animation clock. The instrument subscribes/unsubscribes
+    /// based on visibility; interpolation and (CPU only) personality motion are
+    /// driven by this clock instead of a per-instrument timer.
+    void setAnimationClock(AnimationClock* clock);
+
+    // AnimationTickable: advance interpolation (and personality, CPU only) by
+    // one frame; report whether continued ticks are needed.
+    void advance(double deltaSeconds, double clockSeconds) override;
+    [[nodiscard]] bool wantsContinuousAnimation() const override;
+
+    /// Enable a personality identity (default is neutral). CPU uses
+    /// InstrumentPersonality::core() to become "The Core".
+    void setPersonality(const InstrumentPersonality& personality);
     [[nodiscard]] CpuInstrumentModel model() const { return target_; }
 
     /// The instrument's title. Defaults to "CPU" so the primary CPU instrument
@@ -84,6 +101,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
 
 private:
     void advanceInterpolation();
@@ -103,7 +122,18 @@ private:
     /// when displayed_ reaches target_ (no idle animation).
     CpuInstrumentModel target_{};
     CpuInstrumentModel displayed_{};
-    QTimer* transitionTimer_;
+    // Shared animation clock (owned by Application). Replaces the former
+    // per-instrument QTimer. The instrument subscribes while visible and
+    // unsubscribes when hidden, so hidden instruments do no animation work.
+    AnimationClock* clock_ = nullptr;
+    bool subscribed_ = false;
+
+    // Personality: static config + evolving runtime state. Neutral by default so
+    // the instrument reproduces its pre-personality look until core() is enabled.
+    // Advanced by the shared clock, never by telemetry.
+    InstrumentPersonality personality_ = InstrumentPersonality::neutral();
+    PersonalityState personalityState_{};
+    PersonalityRenderParams personalityParams_{};
 };
 
 }  // namespace darkspark::deck::instruments

@@ -8,7 +8,8 @@
 #include <QPaintEvent>
 #include <QSizePolicy>
 #include <QString>
-#include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 
 #include "deck/instruments/InstrumentRenderModel.hpp"
 #include "deck/instruments/InstrumentRenderer.hpp"
@@ -41,13 +42,9 @@ QString CoolingInstrument::secondarySuffix(const CoolingInstrumentModel& m) {
 CoolingInstrument::CoolingInstrument(InstrumentSizeMode mode, QWidget* parent)
     : QWidget(parent),
       mode_(mode),
-      transitionTimer_(new QTimer(this)),
       ringPolicy_(std::make_unique<AdaptiveObservedMaxPolicy>()) {
     setAttribute(Qt::WA_OpaquePaintEvent, false);
     applySizePolicyForMode();
-    transitionTimer_->setInterval(16);
-    connect(transitionTimer_, &QTimer::timeout, this,
-            &CoolingInstrument::advanceInterpolation);
 }
 
 CoolingInstrument::~CoolingInstrument() = default;
@@ -74,8 +71,8 @@ void CoolingInstrument::setModel(const CoolingInstrumentModel& model) {
     if (interpolationSettled()) {
         displayed_ = target_;
         update();
-    } else if (!transitionTimer_->isActive()) {
-        transitionTimer_->start();
+    } else if (clock_ != nullptr) {
+        clock_->requestAnimation();
     }
 }
 
@@ -87,7 +84,8 @@ bool CoolingInstrument::interpolationSettled() const {
     return dP < 1.0 && dT < 0.1 && dS < 1.0;
 }
 
-void CoolingInstrument::advanceInterpolation() {
+void CoolingInstrument::advance(double /*deltaSeconds*/,
+                              double /*clockSeconds*/) {
     constexpr double kEase = 0.22;
     displayed_.primaryRpm +=
         (target_.primaryRpm - displayed_.primaryRpm) * kEase;
@@ -99,7 +97,6 @@ void CoolingInstrument::advanceInterpolation() {
         displayed_.primaryRpm = target_.primaryRpm;
         displayed_.secondaryTempCelsius = target_.secondaryTempCelsius;
         displayed_.secondaryRpm = target_.secondaryRpm;
-        transitionTimer_->stop();
     }
     update();
 }
@@ -159,6 +156,38 @@ void CoolingInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.glowStrength = 1.0;
 
     InstrumentRenderer::paint(painter, rect(), rm);
+}
+
+
+void CoolingInstrument::setAnimationClock(AnimationClock* clock) {
+    clock_ = clock;
+    if (clock_ != nullptr && isVisible() && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+    }
+}
+
+bool CoolingInstrument::wantsContinuousAnimation() const {
+    return !interpolationSettled();
+}
+
+void CoolingInstrument::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    if (clock_ != nullptr && !subscribed_) {
+        clock_->subscribe(this);
+        subscribed_ = true;
+        if (!interpolationSettled()) {
+            clock_->requestAnimation();
+        }
+    }
+}
+
+void CoolingInstrument::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    if (clock_ != nullptr && subscribed_) {
+        clock_->unsubscribe(this);
+        subscribed_ = false;
+    }
 }
 
 }  // namespace darkspark::deck::instruments

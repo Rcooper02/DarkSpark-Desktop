@@ -7,11 +7,13 @@
 #include <memory>
 
 #include "deck/instruments/CoolingInstrumentModel.hpp"
+#include "deck/instruments/AnimationClock.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "deck/instruments/RingNormalizationPolicy.hpp"
 
 class QPaintEvent;
-class QTimer;
+class QShowEvent;
+class QHideEvent;
 
 namespace darkspark::deck::instruments {
 
@@ -27,7 +29,7 @@ namespace darkspark::deck::instruments {
 /// RingNormalizationPolicy (default: AdaptiveObservedMaxPolicy) -- it does NOT
 /// imply "% of maximum cooling". The secondary is a coolant temperature or a
 /// second fan's RPM when present. Single-ring in V1 (hasSecondaryRing false).
-class CoolingInstrument : public QWidget {
+class CoolingInstrument : public QWidget, public AnimationTickable {
     Q_OBJECT
 
 public:
@@ -35,6 +37,16 @@ public:
     ~CoolingInstrument() override;
 
     void setModel(const CoolingInstrumentModel& model);
+
+    /// Wire the shared animation clock. The instrument subscribes/unsubscribes
+    /// based on visibility; interpolation and (CPU only) personality motion are
+    /// driven by this clock instead of a per-instrument timer.
+    void setAnimationClock(AnimationClock* clock);
+
+    // AnimationTickable: advance interpolation (and personality, CPU only) by
+    // one frame; report whether continued ticks are needed.
+    void advance(double deltaSeconds, double clockSeconds) override;
+    [[nodiscard]] bool wantsContinuousAnimation() const override;
     [[nodiscard]] CoolingInstrumentModel model() const { return target_; }
 
     void setSizeMode(InstrumentSizeMode mode);
@@ -55,6 +67,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
 
 private:
     void advanceInterpolation();
@@ -64,7 +78,11 @@ private:
     InstrumentSizeMode mode_;
     CoolingInstrumentModel target_{};
     CoolingInstrumentModel displayed_{};
-    QTimer* transitionTimer_;
+    // Shared animation clock (owned by Application). Replaces the former
+    // per-instrument QTimer. The instrument subscribes while visible and
+    // unsubscribes when hidden, so hidden instruments do no animation work.
+    AnimationClock* clock_ = nullptr;
+    bool subscribed_ = false;
     std::unique_ptr<RingNormalizationPolicy> ringPolicy_;
 };
 

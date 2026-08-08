@@ -2,6 +2,8 @@
 #ifndef DARKSPARK_DECK_INSTRUMENTS_INSTRUMENTRENDERMODEL_HPP
 #define DARKSPARK_DECK_INSTRUMENTS_INSTRUMENTRENDERMODEL_HPP
 
+#include "deck/instruments/InstrumentPersonality.hpp"
+
 #include <QColor>
 #include <QString>
 
@@ -91,6 +93,13 @@ struct InstrumentRenderModel {
     /// growth). Instruments pass 1.0 today; the renderer honours it so the
     /// interaction states are a data change, not a renderer change.
     double glowStrength = 1.0;
+
+    /// Subsystem-agnostic personality render parameters (visualization state,
+    /// never telemetry). Neutral defaults (all zero) reproduce the
+    /// pre-personality output exactly. The renderer consumes these plain scalars
+    /// in the Structure and Energy layers only; it never learns which instrument
+    /// or personality produced them.
+    PersonalityRenderParams personality{};
 };
 
 }  // namespace darkspark::deck::instruments

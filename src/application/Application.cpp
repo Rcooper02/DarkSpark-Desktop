@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "deck/DeckWindow.hpp"
+#include "deck/instruments/AnimationClock.hpp"
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/CpuInstrumentModelAdapter.hpp"
 #include "deck/instruments/InstrumentPreviewPage.hpp"
@@ -238,6 +239,25 @@ void Application::startCommandDeck() {
     outer->setContentsMargins(0, 0, 0, 0);
     auto* page = new deck::pages::CommandDeckPage(window.get());
     outer->addWidget(page);
+
+    // One shared animation clock for the entire Command Deck (parented to the
+    // window). It replaces the six former per-instrument timers: every
+    // instrument is driven by this single clock, so there is exactly one
+    // animation QTimer for the deck. Each instrument subscribes/unsubscribes on
+    // show/hide, and the clock stops entirely when nothing needs animation.
+    auto* animationClock =
+        new deck::instruments::AnimationClock(window.get());
+    page->primaryInstrument()->setAnimationClock(animationClock);
+    page->gpuInstrument()->setAnimationClock(animationClock);
+    page->memoryInstrument()->setAnimationClock(animationClock);
+    page->coolingInstrument()->setAnimationClock(animationClock);
+    page->storageInstrument()->setAnimationClock(animationClock);
+    page->networkInstrument()->setAnimationClock(animationClock);
+
+    // CPU is the reference personality this milestone: "The Core". The other
+    // five instruments keep the neutral personality (byte-identical visuals).
+    page->primaryInstrument()->setPersonality(
+        deck::instruments::InstrumentPersonality::core());
 
     connect(new QShortcut(QKeySequence(Qt::Key_Escape), window.get()),
             &QShortcut::activated, window.get(), &QWidget::close);
