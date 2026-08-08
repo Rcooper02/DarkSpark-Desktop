@@ -27,7 +27,12 @@ enum class MetricId {
     StorageTotalBytes,
     StorageTemperature,
     StorageReadRate,
-    StorageWriteRate
+    StorageWriteRate,
+    NetworkReceiveRate,
+    NetworkTransmitRate,
+    NetworkReceivedBytes,
+    NetworkTransmittedBytes,
+    NetworkLinkState
 };
 
 enum class MetricUnit { Percent, Celsius, Bytes, Rpm, BytesPerSecond };

@@ -62,6 +62,11 @@ bool GpuInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::StorageTemperature:
     case MetricId::StorageReadRate:
     case MetricId::StorageWriteRate:
+    case MetricId::NetworkReceiveRate:
+    case MetricId::NetworkTransmitRate:
+    case MetricId::NetworkReceivedBytes:
+    case MetricId::NetworkTransmittedBytes:
+    case MetricId::NetworkLinkState:
         // Not shown by the GPU instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;

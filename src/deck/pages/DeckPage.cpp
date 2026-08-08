@@ -64,6 +64,11 @@ constexpr int kMaxColumns = 6;
     case models::MetricId::StorageTemperature:
     case models::MetricId::StorageReadRate:
     case models::MetricId::StorageWriteRate:
+    case models::MetricId::NetworkReceiveRate:
+    case models::MetricId::NetworkTransmitRate:
+    case models::MetricId::NetworkReceivedBytes:
+    case models::MetricId::NetworkTransmittedBytes:
+    case models::MetricId::NetworkLinkState:
         // Intentional: GPU metrics have NO card-dashboard mapping. GPU is a
         // Command Deck instrument, not a card on the legacy dashboard. Returning
         // nullptr routes any GPU sample to the safe "no card for this metric"
@@ -119,6 +124,11 @@ struct Thresholds {
     case models::MetricId::StorageTemperature:
     case models::MetricId::StorageReadRate:
     case models::MetricId::StorageWriteRate:
+    case models::MetricId::NetworkReceiveRate:
+    case models::MetricId::NetworkTransmitRate:
+    case models::MetricId::NetworkReceivedBytes:
+    case models::MetricId::NetworkTransmittedBytes:
+    case models::MetricId::NetworkLinkState:
         // Intentional: no GPU thresholds here. Health is the future Health
         // Engine's exclusive concern, never this page's. The unreachable-high
         // sentinel guarantees no escalation is produced even if a GPU sample

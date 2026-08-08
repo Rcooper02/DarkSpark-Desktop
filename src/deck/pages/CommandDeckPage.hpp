@@ -11,6 +11,7 @@ class GpuInstrument;
 class MemoryInstrument;
 class CoolingInstrument;
 class StorageInstrument;
+class NetworkInstrument;
 }
 
 namespace darkspark::deck::pages {
@@ -82,6 +83,12 @@ public:
         return storageInstrument_;
     }
 
+    /// The live Network instrument. Composition creates it; Application binds it
+    /// to network telemetry, so this page stays telemetry-independent.
+    [[nodiscard]] instruments::NetworkInstrument* networkInstrument() const {
+        return networkInstrument_;
+    }
+
 private:
     QWidget* buildStatusRegion();
     QWidget* buildNavigationRegion();
@@ -93,6 +100,7 @@ private:
     instruments::MemoryInstrument* memoryInstrument_ = nullptr;
     instruments::CoolingInstrument* coolingInstrument_ = nullptr;
     instruments::StorageInstrument* storageInstrument_ = nullptr;
+    instruments::NetworkInstrument* networkInstrument_ = nullptr;
     QList<instruments::CpuInstrument*> shellInstruments_;
 };
 

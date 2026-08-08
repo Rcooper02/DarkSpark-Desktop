@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "deck/instruments/StorageInstrumentModelAdapter.hpp"
+#include "deck/instruments/NetworkInstrumentModelAdapter.hpp"
 
 #include <algorithm>
 
@@ -9,7 +9,7 @@ using models::MetricId;
 using models::MetricSample;
 using models::MetricState;
 
-ValueAvailability StorageInstrumentModelAdapter::availabilityFor(
+ValueAvailability NetworkInstrumentModelAdapter::availabilityFor(
     MetricState state) {
     switch (state) {
     case MetricState::Fresh:
@@ -22,55 +22,49 @@ ValueAvailability StorageInstrumentModelAdapter::availabilityFor(
     return ValueAvailability::Absent;
 }
 
-bool StorageInstrumentModelAdapter::apply(const MetricSample& sample) {
+bool NetworkInstrumentModelAdapter::apply(const MetricSample& sample) {
     switch (sample.id()) {
-    case MetricId::StorageUtilization: {
+    case MetricId::NetworkReceiveRate: {
         const ValueAvailability avail = availabilityFor(sample.state());
         if (sample.value().has_value()) {
-            model_.utilizationPercent =
-                std::clamp(sample.value().value(), 0.0, 100.0);
+            model_.receiveBytesPerSec = std::max(0.0, sample.value().value());
         }
-        model_.utilizationAvailability = avail;
+        model_.receiveAvailability = avail;
         return true;
     }
-    case MetricId::StorageUsedBytes: {
+    case MetricId::NetworkTransmitRate: {
         const ValueAvailability avail = availabilityFor(sample.state());
         if (sample.value().has_value()) {
-            model_.usedBytes = std::max(0.0, sample.value().value());
+            model_.transmitBytesPerSec = std::max(0.0, sample.value().value());
         }
-        model_.usedAvailability = avail;
+        model_.transmitAvailability = avail;
         return true;
     }
-    case MetricId::StorageTotalBytes: {
+    case MetricId::NetworkReceivedBytes: {
         const ValueAvailability avail = availabilityFor(sample.state());
         if (sample.value().has_value()) {
-            model_.totalBytes = std::max(0.0, sample.value().value());
+            model_.receivedBytes = std::max(0.0, sample.value().value());
         }
-        model_.totalAvailability = avail;
+        model_.receivedAvailability = avail;
         return true;
     }
-    case MetricId::StorageTemperature: {
+    case MetricId::NetworkTransmittedBytes: {
         const ValueAvailability avail = availabilityFor(sample.state());
         if (sample.value().has_value()) {
-            model_.temperatureCelsius = sample.value().value();
+            model_.transmittedBytes = std::max(0.0, sample.value().value());
         }
-        model_.temperatureAvailability = avail;
+        model_.transmittedAvailability = avail;
         return true;
     }
-    case MetricId::StorageReadRate: {
+    case MetricId::NetworkLinkState: {
         const ValueAvailability avail = availabilityFor(sample.state());
         if (sample.value().has_value()) {
-            model_.readBytesPerSec = std::max(0.0, sample.value().value());
+            // Interpreted by MetricId: 0 = Down, non-zero (1) = Up.
+            model_.linkState = (sample.value().value() >= 0.5)
+                                   ? NetworkLinkState::Up
+                                   : NetworkLinkState::Down;
         }
-        model_.readAvailability = avail;
-        return true;
-    }
-    case MetricId::StorageWriteRate: {
-        const ValueAvailability avail = availabilityFor(sample.state());
-        if (sample.value().has_value()) {
-            model_.writeBytesPerSec = std::max(0.0, sample.value().value());
-        }
-        model_.writeAvailability = avail;
+        model_.linkAvailability = avail;
         return true;
     }
     case MetricId::CpuTotalUtilization:
@@ -83,12 +77,13 @@ bool StorageInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::CoolingPrimary:
     case MetricId::CoolingSecondary:
     case MetricId::CoolingCoolantTemp:
-    case MetricId::NetworkReceiveRate:
-    case MetricId::NetworkTransmitRate:
-    case MetricId::NetworkReceivedBytes:
-    case MetricId::NetworkTransmittedBytes:
-    case MetricId::NetworkLinkState:
-        // Not shown by the storage instrument. Explicit cases (not a default)
+    case MetricId::StorageUtilization:
+    case MetricId::StorageUsedBytes:
+    case MetricId::StorageTotalBytes:
+    case MetricId::StorageTemperature:
+    case MetricId::StorageReadRate:
+    case MetricId::StorageWriteRate:
+        // Not shown by the network instrument. Explicit cases (not a default)
         // preserve the -Wswitch guarantee.
         return false;
     }

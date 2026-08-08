@@ -9,6 +9,7 @@
 #include "deck/instruments/MemoryInstrument.hpp"
 #include "deck/instruments/CoolingInstrument.hpp"
 #include "deck/instruments/StorageInstrument.hpp"
+#include "deck/instruments/NetworkInstrument.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
 #include "deck/instruments/InstrumentSizeMode.hpp"
 #include "themes/LegacyTheme.hpp"
@@ -19,6 +20,7 @@ using instruments::CpuInstrument;
 using instruments::MemoryInstrument;
 using instruments::CoolingInstrument;
 using instruments::StorageInstrument;
+using instruments::NetworkInstrument;
 using instruments::GpuInstrument;
 using instruments::InstrumentSizeMode;
 
@@ -134,25 +136,11 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
     storageInstrument_ = new StorageInstrument(InstrumentSizeMode::Small, region);
     grid->addWidget(storageInstrument_, 1, 1, Qt::AlignCenter);
 
-    // Network is the sole remaining shell, at (1, 0). Slot (1, 2) stays empty.
-    struct ShellPlacement {
-        const char* title;
-        int row;
-        int col;
-    };
-    static const ShellPlacement kShells[] = {
-        {"Network", 1, 0}};
-    for (const ShellPlacement& s : kShells) {
-        auto* shell = new CpuInstrument(InstrumentSizeMode::Small, region);
-        shell->setTitle(QString::fromUtf8(s.title));
-        // A shell: dormant conduits (all-Absent model) plus the "Awaiting
-        // Telemetry" caption. No telemetry is ever bound to these. Each Small
-        // shell is centered within its own grid cell (the validated maximum-cap
-        // sizing keeps it at its intended footprint).
-        shell->setAwaitingTelemetry(true);
-        shellInstruments_.append(shell);
-        grid->addWidget(shell, s.row, s.col, Qt::AlignCenter);
-    }
+    // Network is the sixth live subsystem instrument, at (1, 0). Created here
+    // (composition), bound to telemetry outside the page (Application). With
+    // Network live, no dormant shells remain; slot (1, 2) stays empty.
+    networkInstrument_ = new NetworkInstrument(InstrumentSizeMode::Small, region);
+    grid->addWidget(networkInstrument_, 1, 0, Qt::AlignCenter);
     // Keep all three columns and both rows evenly weighted so the empty
     // bottom-right slot holds its place rather than collapsing, and the grid is
     // not stretched to hide it.

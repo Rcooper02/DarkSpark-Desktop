@@ -130,6 +130,16 @@ qt_add_executable(darkspark-desktop
     src/deck/instruments/StorageInstrumentModel.hpp
     src/deck/instruments/StorageInstrumentModelAdapter.cpp
     src/deck/instruments/StorageInstrumentModelAdapter.hpp
+    src/services/NetworkSensorProvider.hpp
+    src/services/NetworkInterfaceProvider.cpp
+    src/services/NetworkInterfaceProvider.hpp
+    src/services/NetworkTelemetryService.cpp
+    src/services/NetworkTelemetryService.hpp
+    src/deck/instruments/NetworkInstrument.cpp
+    src/deck/instruments/NetworkInstrument.hpp
+    src/deck/instruments/NetworkInstrumentModel.hpp
+    src/deck/instruments/NetworkInstrumentModelAdapter.cpp
+    src/deck/instruments/NetworkInstrumentModelAdapter.hpp
     src/deck/instruments/InstrumentRenderer.cpp
     src/deck/instruments/InstrumentRenderer.hpp
     src/deck/instruments/InstrumentRenderModel.hpp
@@ -382,6 +392,44 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-storage-service-test
         COMMAND darkspark-storage-service-test
+    )
+
+    # Network adapter test: joins all five metrics, retains cumulative bytes +
+    # link state + identity, ignores unrelated. Qt-free.
+    add_executable(darkspark-network-adapter-test
+        tests/deck/instruments/NetworkInstrumentModelAdapterTest.cpp
+        src/deck/instruments/NetworkInstrumentModelAdapter.cpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-network-adapter-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-network-adapter-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-network-adapter-test
+        COMMAND darkspark-network-adapter-test
+    )
+
+    # Network service test: interface selection policy, discovery summary +
+    # explicit fallback, and RX/TX rate via NetworkInterfaceProvider (reusing
+    # ThroughputRateCalculator). Qt6::Core; the interface header is listed
+    # (tab-indented) for AUTOMOC.
+    add_executable(darkspark-network-service-test
+        tests/services/NetworkTelemetryServiceTest.cpp
+        src/services/NetworkTelemetryService.cpp
+        src/services/NetworkTelemetryService.hpp
+        src/services/NetworkInterfaceProvider.cpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-network-service-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-network-service-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-network-service-test
+        COMMAND darkspark-network-service-test
     )
 
     # GPU service test: the GPU providers derive from QObject, so this target

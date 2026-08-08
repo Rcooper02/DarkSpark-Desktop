@@ -66,6 +66,11 @@ bool CpuInstrumentModelAdapter::apply(const MetricSample& sample) {
     case MetricId::StorageTemperature:
     case MetricId::StorageReadRate:
     case MetricId::StorageWriteRate:
+    case MetricId::NetworkReceiveRate:
+    case MetricId::NetworkTransmitRate:
+    case MetricId::NetworkReceivedBytes:
+    case MetricId::NetworkTransmittedBytes:
+    case MetricId::NetworkLinkState:
         // GPU and Cooling metrics are handled by their own adapters, never the CPU one. Ignored
         // here so a shared telemetry stream does not disturb the CPU instrument.
         // Explicit cases (not a default) preserve the -Wswitch guarantee.

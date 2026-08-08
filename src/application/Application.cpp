@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "application/Application.hpp"
 
+#include <string_view>
+
 #include "deck/DeckWindow.hpp"
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/CpuInstrumentModelAdapter.hpp"
@@ -20,10 +22,13 @@
 #include "deck/instruments/CoolingInstrument.hpp"
 #include "deck/instruments/CoolingInstrumentModelAdapter.hpp"
 #include "deck/instruments/StorageInstrument.hpp"
+#include "deck/instruments/NetworkInstrument.hpp"
 #include "deck/instruments/StorageInstrumentModelAdapter.hpp"
+#include "deck/instruments/NetworkInstrumentModelAdapter.hpp"
 #include "services/MemoryTelemetryService.hpp"
 #include "services/CoolingTelemetryService.hpp"
 #include "services/StorageTelemetryService.hpp"
+#include "services/NetworkTelemetryService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -378,9 +383,44 @@ void Application::startCommandDeck() {
         applyStorageSample(sample);
     }
 
+    // Network wiring, the sixth live subsystem: networkProvider -> networkAdapter
+    // -> page->networkInstrument(). The service aggregates network interface
+    // providers, applies the deterministic active-interface selection policy, and
+    // emits five role-based samples; the adapter joins them (retaining cumulative
+    // bytes and link state even though the V1 face shows only download + upload).
+    // Retained interface identity is populated from the sample key ("net:<iface>")
+    // so the page needs no telemetry knowledge.
+    auto* network = page->networkInstrument();
+    auto networkAdapter =
+        std::make_shared<deck::instruments::NetworkInstrumentModelAdapter>();
+    auto applyNetworkSample =
+        [networkAdapter, network](const models::MetricSample& sample) {
+            if (networkAdapter->apply(sample)) {
+                auto model = networkAdapter->model();
+                // Populate the retained interface identity from the stable key
+                // ("net:<iface>"); the flags remain future-UI scaffolding in V1.
+                const std::string key = sample.sensorKey();
+                constexpr std::string_view kPrefix = "net:";
+                if (key.rfind(kPrefix, 0) == 0) {
+                    model.interfaceName = key.substr(kPrefix.size());
+                }
+                network->setModel(model);
+            }
+        };
+
+    auto* networkProvider = new services::NetworkTelemetryService(window.get());
+    connect(networkProvider, &interfaces::ITelemetryProvider::readingChanged,
+            window.get(), applyNetworkSample);
+    networkProvider->start();
+    const QList<models::MetricSample> networkPrimed =
+        networkProvider->currentSamples();
+    for (const models::MetricSample& sample : networkPrimed) {
+        applyNetworkSample(sample);
+    }
+
     window->showFullScreen();
     commandDeckWindow_ = std::move(window);
-    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory + Cooling + Storage telemetry)";
+    qCInfo(lcApp) << "Started in Command Deck mode (live CPU + GPU + Memory + Cooling + Storage + Network telemetry)";
 }
 
 void Application::startTelemetry() {
