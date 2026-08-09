@@ -5,6 +5,8 @@
 #include <QList>
 #include <QWidget>
 
+#include "deck/layout/DeckLayout.hpp"
+
 namespace darkspark::deck::instruments {
 class CpuInstrument;
 class GpuInstrument;
@@ -94,6 +96,10 @@ private:
     QWidget* buildNavigationRegion();
     QWidget* buildPrimaryRegion();
     QWidget* buildSecondaryRegion();
+    /// Store the concrete instrument for `id` into the matching typed accessor
+    /// member, so Application can bind telemetry without the page knowing
+    /// telemetry types. Called as the page builds each placement.
+    void captureInstrument(layout::WidgetId id, QWidget* widget);
 
     instruments::CpuInstrument* primaryInstrument_ = nullptr;
     instruments::GpuInstrument* gpuInstrument_ = nullptr;

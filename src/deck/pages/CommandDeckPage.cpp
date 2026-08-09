@@ -11,7 +11,8 @@
 #include "deck/instruments/StorageInstrument.hpp"
 #include "deck/instruments/NetworkInstrument.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
-#include "deck/instruments/InstrumentSizeMode.hpp"
+#include "deck/layout/DeckLayout.hpp"
+#include "deck/layout/InstrumentFactory.hpp"
 #include "themes/LegacyTheme.hpp"
 
 namespace darkspark::deck::pages {
@@ -22,7 +23,6 @@ using instruments::CoolingInstrument;
 using instruments::StorageInstrument;
 using instruments::NetworkInstrument;
 using instruments::GpuInstrument;
-using instruments::InstrumentSizeMode;
 
 namespace {
 
@@ -76,17 +76,27 @@ QWidget* CommandDeckPage::buildNavigationRegion() {
 }
 
 QWidget* CommandDeckPage::buildPrimaryRegion() {
-    // The dominant instrument: the live Large CPU instrument, centered in its
-    // region so it commands its space.
+    // The dominant instrument, built from the layout's Primary-region placement
+    // rather than a hard-coded construction. Today that is the Large CPU,
+    // centered in its region so it commands its space.
     auto* region = new QWidget(this);
     region->setObjectName(QStringLiteral("commandDeckPrimaryRegion"));
     auto* layout = new QVBoxLayout(region);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    primaryInstrument_ = new CpuInstrument(InstrumentSizeMode::Large, region);
-    // Title defaults to "CPU"; this is the real, live instrument (not a shell).
     layout->addStretch(1);
-    layout->addWidget(primaryInstrument_, 0, Qt::AlignCenter);
+    for (const layout::DeckWidgetPlacement& p :
+         layout::defaultCommandDeckLayout().placements) {
+        if (!p.enabled || p.region != layout::DeckRegion::Primary) {
+            continue;
+        }
+        QWidget* w = layout::createInstrument(p.id, p.sizeMode, region);
+        if (w == nullptr) {
+            continue;  // unknown/invalid id: fail gracefully, skip it
+        }
+        captureInstrument(p.id, w);
+        layout->addWidget(w, 0, Qt::AlignCenter);
+    }
     layout->addStretch(1);
     return region;
 }
@@ -109,38 +119,29 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
     grid->setHorizontalSpacing(themes::LegacyTheme::space3xl());
     grid->setVerticalSpacing(themes::LegacyTheme::spaceXl());
 
-    // Explicit (row, col) placement. Row 0: GPU(0,0) Memory(0,1) Cooling(0,2).
-    // Row 1: Network(1,0) Storage(1,1). Slot (1,2) is never populated.
-    //
-    // The GPU slot now hosts the live GpuInstrument (its own class); the other
-    // four remain temporary CpuInstrument shells awaiting their real subsystem
-    // instruments. The live GPU is created here (composition) but bound to
-    // telemetry outside the page (Application), so the page stays
-    // telemetry-independent.
-    gpuInstrument_ = new GpuInstrument(InstrumentSizeMode::Small, region);
-    grid->addWidget(gpuInstrument_, 0, 0, Qt::AlignCenter);
+    auto* gridHost = new QWidget(region);
 
-    // Memory is the second live subsystem instrument, at (0, 1). Like GPU it is
-    // created here (composition) but bound to telemetry outside the page
-    // (Application), so the page stays telemetry-independent.
-    memoryInstrument_ = new MemoryInstrument(InstrumentSizeMode::Small, region);
-    grid->addWidget(memoryInstrument_, 0, 1, Qt::AlignCenter);
+    // Placement is data-driven: iterate the layout's Secondary-region entries
+    // and place each at its (row, column) with its span. The default layout
+    // reproduces the current arrangement exactly -- GPU(0,0) Memory(0,1)
+    // Cooling(0,2), Network(1,0) Storage(1,1) -- with cell (1,2) left empty
+    // because no placement targets it. The page composes; it does not know
+    // telemetry. Instruments are created here but bound to telemetry outside the
+    // page (Application), via the typed accessors captured below.
+    for (const layout::DeckWidgetPlacement& p :
+         layout::defaultCommandDeckLayout().placements) {
+        if (!p.enabled || p.region != layout::DeckRegion::Secondary) {
+            continue;
+        }
+        QWidget* w = layout::createInstrument(p.id, p.sizeMode, gridHost);
+        if (w == nullptr) {
+            continue;  // unknown/invalid id: fail gracefully, skip it
+        }
+        captureInstrument(p.id, w);
+        grid->addWidget(w, p.row, p.column, p.rowSpan, p.columnSpan,
+                        Qt::AlignCenter);
+    }
 
-    // Cooling is the fourth live subsystem instrument, at (0, 2). Created here
-    // (composition), bound to telemetry outside the page (Application).
-    coolingInstrument_ = new CoolingInstrument(InstrumentSizeMode::Small, region);
-    grid->addWidget(coolingInstrument_, 0, 2, Qt::AlignCenter);
-
-    // Storage is the fifth live subsystem instrument, at (1, 1). Created here
-    // (composition), bound to telemetry outside the page (Application).
-    storageInstrument_ = new StorageInstrument(InstrumentSizeMode::Small, region);
-    grid->addWidget(storageInstrument_, 1, 1, Qt::AlignCenter);
-
-    // Network is the sixth live subsystem instrument, at (1, 0). Created here
-    // (composition), bound to telemetry outside the page (Application). With
-    // Network live, no dormant shells remain; slot (1, 2) stays empty.
-    networkInstrument_ = new NetworkInstrument(InstrumentSizeMode::Small, region);
-    grid->addWidget(networkInstrument_, 1, 0, Qt::AlignCenter);
     // Keep all three columns and both rows evenly weighted so the empty
     // bottom-right slot holds its place rather than collapsing, and the grid is
     // not stretched to hide it.
@@ -150,11 +151,39 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
     grid->setRowStretch(0, 1);
     grid->setRowStretch(1, 1);
 
-    auto* gridHost = new QWidget(region);
     gridHost->setLayout(grid);
     outer->addWidget(gridHost, 0, Qt::AlignCenter);
     outer->addStretch(1);
     return region;
+}
+
+void CommandDeckPage::captureInstrument(layout::WidgetId id, QWidget* widget) {
+    // Recover the concrete instrument type for the telemetry accessors. The
+    // page exposes these typed pointers so Application can bind telemetry
+    // without the page knowing telemetry types. Exhaustive over WidgetId, no
+    // default, so a new widget id must be handled here.
+    switch (id) {
+    case layout::WidgetId::Cpu:
+        primaryInstrument_ = qobject_cast<CpuInstrument*>(widget);
+        break;
+    case layout::WidgetId::Gpu:
+        gpuInstrument_ = qobject_cast<GpuInstrument*>(widget);
+        break;
+    case layout::WidgetId::Memory:
+        memoryInstrument_ = qobject_cast<MemoryInstrument*>(widget);
+        break;
+    case layout::WidgetId::Cooling:
+        coolingInstrument_ = qobject_cast<CoolingInstrument*>(widget);
+        break;
+    case layout::WidgetId::Storage:
+        storageInstrument_ = qobject_cast<StorageInstrument*>(widget);
+        break;
+    case layout::WidgetId::Network:
+        networkInstrument_ = qobject_cast<NetworkInstrument*>(widget);
+        break;
+    case layout::WidgetId::Unknown:
+        break;
+    }
 }
 
 }  // namespace darkspark::deck::pages

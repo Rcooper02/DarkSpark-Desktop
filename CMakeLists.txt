@@ -86,6 +86,10 @@ qt_add_executable(darkspark-desktop
     src/deck/pages/DeckPage.hpp
     src/deck/pages/CommandDeckPage.cpp
     src/deck/pages/CommandDeckPage.hpp
+    src/deck/layout/DeckLayout.cpp
+    src/deck/layout/DeckLayout.hpp
+    src/deck/layout/InstrumentFactory.cpp
+    src/deck/layout/InstrumentFactory.hpp
     src/deck/cards/DashboardCard.cpp
     src/deck/cards/DashboardCard.hpp
     src/deck/cards/StatusIndicator.cpp
@@ -263,6 +267,21 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-services-test
         COMMAND darkspark-services-test
+    )
+
+    # DeckLayout test: pure-data layout model -- default validity, invariants,
+    # graceful unknown-id handling. Qt-free (own main()).
+    add_executable(darkspark-deck-layout-test
+        tests/deck/layout/DeckLayoutTest.cpp
+        src/deck/layout/DeckLayout.cpp
+    )
+    target_include_directories(darkspark-deck-layout-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-deck-layout-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-deck-layout-test
+        COMMAND darkspark-deck-layout-test
     )
 
     # GPU adapter test: Qt-free, its own executable (own main()).
