@@ -1,3 +1,7 @@
 
 # Generated build output
 /build/
+
+# Runtime/debug artifacts
+gpu-diag.log
+watch_*
