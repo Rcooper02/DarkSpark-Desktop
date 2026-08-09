@@ -90,6 +90,10 @@ qt_add_executable(darkspark-desktop
     src/deck/layout/DeckLayout.hpp
     src/deck/layout/InstrumentFactory.cpp
     src/deck/layout/InstrumentFactory.hpp
+    src/deck/layout/DeckLayoutSerializer.cpp
+    src/deck/layout/DeckLayoutSerializer.hpp
+    src/deck/layout/LayoutPersistenceService.cpp
+    src/deck/layout/LayoutPersistenceService.hpp
     src/deck/cards/DashboardCard.cpp
     src/deck/cards/DashboardCard.hpp
     src/deck/cards/StatusIndicator.cpp
@@ -282,6 +286,41 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-deck-layout-test
         COMMAND darkspark-deck-layout-test
+    )
+
+    # DeckLayout serializer test: DeckLayout<->JSON + enum/string mappings,
+    # round-trip, malformed/unknown/invalid. Links Qt6::Core (QJson); own main().
+    add_executable(darkspark-deck-layout-serializer-test
+        tests/deck/layout/DeckLayoutSerializerTest.cpp
+        src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutSerializer.cpp
+    )
+    target_include_directories(darkspark-deck-layout-serializer-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-deck-layout-serializer-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-deck-layout-serializer-test
+        COMMAND darkspark-deck-layout-serializer-test
+    )
+
+    # Layout persistence service test: file-facing load/save/recover flows,
+    # driven against a temp path (never the real config dir). Links Qt6::Core.
+    add_executable(darkspark-layout-persistence-test
+        tests/deck/layout/LayoutPersistenceServiceTest.cpp
+        src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutSerializer.cpp
+        src/deck/layout/LayoutPersistenceService.cpp
+    )
+    target_include_directories(darkspark-layout-persistence-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-layout-persistence-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-layout-persistence-test
+        COMMAND darkspark-layout-persistence-test
     )
 
     # GPU adapter test: Qt-free, its own executable (own main()).

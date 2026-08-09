@@ -32,7 +32,12 @@ constexpr int kReservedStripHeight = 44;
 
 }  // namespace
 
-CommandDeckPage::CommandDeckPage(QWidget* parent) : QWidget(parent) {
+CommandDeckPage::CommandDeckPage(QWidget* parent)
+    : CommandDeckPage(layout::defaultCommandDeckLayout(), parent) {}
+
+CommandDeckPage::CommandDeckPage(const layout::DeckLayout& deckLayout,
+                                 QWidget* parent)
+    : QWidget(parent), layout_(deckLayout) {
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
@@ -86,7 +91,7 @@ QWidget* CommandDeckPage::buildPrimaryRegion() {
 
     layout->addStretch(1);
     for (const layout::DeckWidgetPlacement& p :
-         layout::defaultCommandDeckLayout().placements) {
+         layout_.placements) {
         if (!p.enabled || p.region != layout::DeckRegion::Primary) {
             continue;
         }
@@ -129,7 +134,7 @@ QWidget* CommandDeckPage::buildSecondaryRegion() {
     // telemetry. Instruments are created here but bound to telemetry outside the
     // page (Application), via the typed accessors captured below.
     for (const layout::DeckWidgetPlacement& p :
-         layout::defaultCommandDeckLayout().placements) {
+         layout_.placements) {
         if (!p.enabled || p.region != layout::DeckRegion::Secondary) {
             continue;
         }

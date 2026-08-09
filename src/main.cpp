@@ -10,6 +10,7 @@
 /// so diagnostics go through qCInfo/qCWarning categories.
 int main(int argc, char** argv) {
     QApplication qtApp(argc, argv);
+    QApplication::setOrganizationName(QStringLiteral("DarkSpark"));
     QApplication::setApplicationName(QStringLiteral("DarkSpark Desktop"));
     QApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
 

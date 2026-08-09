@@ -14,6 +14,7 @@
 #include "services/GpuThermalService.hpp"
 #include "services/GpuVramService.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
+#include "deck/layout/LayoutPersistenceService.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
@@ -243,7 +244,15 @@ void Application::startCommandDeck() {
 
     auto* outer = new QVBoxLayout(window.get());
     outer->setContentsMargins(0, 0, 0, 0);
-    auto* page = new deck::pages::CommandDeckPage(window.get());
+    // Resolve the Command Deck layout from persistence before building the page:
+    // loads a valid persisted layout, or writes+returns the compiled default on
+    // first run / self-recovers from a bad file. The page receives a resolved
+    // layout and knows nothing about JSON or files.
+    deck::layout::LayoutPersistenceService layoutPersistence;
+    const deck::layout::DeckLayout resolvedLayout =
+        layoutPersistence.loadOrDefault();
+    auto* page =
+        new deck::pages::CommandDeckPage(resolvedLayout, window.get());
     outer->addWidget(page);
 
     // One shared animation clock for the entire Command Deck (parented to the

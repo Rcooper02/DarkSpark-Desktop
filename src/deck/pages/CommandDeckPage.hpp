@@ -52,6 +52,13 @@ class CommandDeckPage : public QWidget {
 public:
     explicit CommandDeckPage(QWidget* parent = nullptr);
 
+    /// Construct from a resolved layout (e.g. loaded from persistence). The page
+    /// stores and builds from this layout and knows nothing about how it was
+    /// resolved -- no JSON, no files. The parent-only constructor above delegates
+    /// here with defaultCommandDeckLayout() for compatibility.
+    explicit CommandDeckPage(const layout::DeckLayout& deckLayout,
+                             QWidget* parent = nullptr);
+
     /// The live primary instrument (CPU). Exposed so the composition root can
     /// bind telemetry to it without the page knowing about telemetry types.
     /// Never null after construction.
@@ -100,6 +107,8 @@ private:
     /// member, so Application can bind telemetry without the page knowing
     /// telemetry types. Called as the page builds each placement.
     void captureInstrument(layout::WidgetId id, QWidget* widget);
+
+    layout::DeckLayout layout_;
 
     instruments::CpuInstrument* primaryInstrument_ = nullptr;
     instruments::GpuInstrument* gpuInstrument_ = nullptr;
