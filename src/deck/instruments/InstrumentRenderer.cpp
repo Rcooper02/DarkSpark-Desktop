@@ -3,6 +3,7 @@
 
 #include <QFont>
 #include <QFontMetricsF>
+#include <QLoggingCategory>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRadialGradient>
@@ -19,6 +20,11 @@ namespace darkspark::deck::instruments {
 using themes::LegacyTheme;
 
 namespace {
+
+// TEMPORARY diagnostic category for verifying the load->colour pipeline. OFF by
+// default; enable with QT_LOGGING_RULES="darkspark.reactor.debug=true". Remove
+// once the colour story is confirmed on hardware.
+Q_LOGGING_CATEGORY(lcReactorDebug, "darkspark.reactor.debug")
 
 // Warm-shift an accent toward a warmer hue by `warmth` in [0,1]. At warmth 0 the
 // color is returned unchanged (neutral-safe). Subsystem-agnostic: the renderer
@@ -98,6 +104,65 @@ QColor reactorPlasmaColor(double t, bool outer) {
     }
     return mix(blueWhite, amber, (x - 0.85) / 0.15 * 0.14);
 }
+
+// Utilization-driven core colour (DISTINCT from reactorPlasmaColor, which tells
+// the temperature story). Maps CPU load [0,1] through the approved progression:
+//   0-25%  icy cyan
+//   25-50% medium blue
+//   50-75% deep electric blue
+//   75-85% luminous bridge: deep blue -> pale blue-white -> warm pale yellow
+//   85-95% yellow -> orange
+//   95-100% orange -> red   (unmistakably red at 100%)
+// Continuous piecewise-linear; the bridge routes THROUGH light tints so the
+// blue->yellow hand-off never passes through muddy grey/brown.
+QColor coreLoadColor(double load) {
+    const double x = std::clamp(load, 0.0, 1.0);
+    // Anchor colours.
+    const QColor icyCyan(150, 225, 255);
+    const QColor mediumBlue(60, 150, 255);
+    const QColor deepBlue(30, 90, 220);
+    const QColor paleBlueWhite(220, 238, 255);  // luminous bridge 1
+    const QColor warmPaleYellow(248, 240, 190);  // luminous bridge 2
+    const QColor yellow(240, 220, 70);
+    const QColor orange(240, 140, 40);
+    const QColor red(220, 40, 30);
+    auto mix = [](const QColor& a, const QColor& b, double f) {
+        const double g = std::clamp(f, 0.0, 1.0);
+        QColor o;
+        o.setRedF(static_cast<float>(
+            std::clamp(a.redF() + (b.redF() - a.redF()) * g, 0.0, 1.0)));
+        o.setGreenF(static_cast<float>(
+            std::clamp(a.greenF() + (b.greenF() - a.greenF()) * g, 0.0, 1.0)));
+        o.setBlueF(static_cast<float>(
+            std::clamp(a.blueF() + (b.blueF() - a.blueF()) * g, 0.0, 1.0)));
+        return o;
+    };
+    // Piecewise segments keyed to the approved load bands.
+    if (x < 0.25) {
+        return mix(icyCyan, mediumBlue, x / 0.25);
+    }
+    if (x < 0.50) {
+        return mix(mediumBlue, deepBlue, (x - 0.25) / 0.25);
+    }
+    if (x < 0.75) {
+        // deep electric blue holds, easing toward the bridge start.
+        return mix(deepBlue, deepBlue, (x - 0.50) / 0.25);
+    }
+    if (x < 0.80) {
+        return mix(deepBlue, paleBlueWhite, (x - 0.75) / 0.05);
+    }
+    if (x < 0.85) {
+        return mix(paleBlueWhite, warmPaleYellow, (x - 0.80) / 0.05);
+    }
+    if (x < 0.90) {
+        return mix(warmPaleYellow, yellow, (x - 0.85) / 0.05);
+    }
+    if (x < 0.95) {
+        return mix(yellow, orange, (x - 0.90) / 0.05);
+    }
+    return mix(orange, red, (x - 0.95) / 0.05);
+}
+
 
 void paintGraduationTicks(QPainter& painter, const CpuInstrumentLayout& layout,
                           const QColor& accent) {
@@ -392,37 +457,79 @@ void paintCenterStack(QPainter& painter, const CpuInstrumentLayout& layout,
     // placeholder. All are muted so they never compete with the primary value.
     {
         QFont f(mono);
-        const int secPx =
-            (mode == InstrumentSizeMode::Small) ? 12 : LegacyTheme::fontCardSubtitle();
+        // Temperature/secondary is significantly larger now (~1.5x) so it reads
+        // at a glance, while still clearly subordinate to the percentage.
+        const int secPx = (mode == InstrumentSizeMode::Small)
+                              ? 16
+                              : static_cast<int>(std::lround(
+                                    LegacyTheme::fontCardSubtitle() * 1.5));
         f.setPixelSize(awaiting ? std::max(9, secPx - 2) : secPx);
-        f.setWeight(QFont::Medium);
+        f.setWeight(QFont::Bold);
         if (awaiting) {
             // Slight tracking makes the caption read as a deliberate status line.
             f.setLetterSpacing(QFont::AbsoluteSpacing, 1.0);
         }
         painter.setFont(f);
-        // Subordinate: muted text, not an accent, so the secondary line does not
-        // compete with utilization for the eye. The accent lives on the ring.
-        painter.setPen(LegacyTheme::textSecondary());
-        const QRectF box(0, layout.secondaryY - secPx, layout.side, secPx * 1.8);
         QString secondaryText;
         if (awaiting) {
-            // A shell awaiting its real instrument: no numbers, just a quiet
-            // status caption. The dormant conduits already convey "present but
-            // not live".
             secondaryText = QStringLiteral("Awaiting Telemetry");
         } else if (rm.secondary.availability == ValueAvailability::Absent
                    || rm.secondary.text.isEmpty()) {
-            // No current secondary reading: a restrained, unit-free neutral
-            // placeholder rather than a fabricated value.
             secondaryText = QStringLiteral("--");
         } else {
-            // The instrument supplies value text + unit suffix; the renderer
-            // composes them exactly as it does the primary and never interprets
-            // the unit.
             secondaryText = rm.secondary.text + rm.secondary.suffix;
         }
-        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, secondaryText);
+        // Live numeric readings (e.g. "81C") get a crisp HUD treatment so they
+        // stay legible over ANY reactor-orb colour behind them: a subtle cool
+        // cyan accent -> BLACK outline -> temperature-COLOURED fill, stroked from
+        // the glyph paths (same technique as the percentage). The fill colour is
+        // temperature-driven (accents.temperature), never utilization. The
+        // awaiting/placeholder captions keep the quiet muted pen.
+        const bool numericReading =
+            !awaiting && rm.secondary.availability != ValueAvailability::Absent
+            && !rm.secondary.text.isEmpty();
+        if (numericReading) {
+            QPainterPath glyphs;
+            {
+                QFontMetricsF fm(f);
+                const double tw = fm.horizontalAdvance(secondaryText);
+                const double bx = (layout.side - tw) / 2.0;
+                const double by = layout.secondaryY + fm.ascent() / 2.0
+                                  - fm.descent() / 2.0;
+                glyphs.addText(QPointF(bx, by), f, secondaryText);
+            }
+            // Subtle cool accent (single restrained pass -- crisp, not neon).
+            QColor accent(90, 200, 255);
+            accent.setAlphaF(0.28f);
+            QPen ap(accent);
+            ap.setWidthF(std::max(2.0, secPx * 0.16));
+            ap.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(ap);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(glyphs);
+            // Black outline for contrast against blue->yellow->orange->red orb.
+            QPen op(QColor(6, 8, 12));
+            op.setWidthF(std::max(2.0, secPx * 0.11));
+            op.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(op);
+            painter.drawPath(glyphs);
+            // Temperature-coloured fill (temperature-driven accent).
+            QColor fill = applyWarmth(rm.accents.temperature,
+                                      rm.personality.warmth);
+            if (!fill.isValid()) {
+                fill = QColor(150, 225, 255);
+            }
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(fill);
+            painter.drawPath(glyphs);
+        } else {
+            // Muted caption/placeholder: unchanged quiet treatment.
+            const QRectF box(0, layout.secondaryY - secPx, layout.side,
+                             secPx * 1.8);
+            painter.setPen(LegacyTheme::textSecondary());
+            painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter,
+                             secondaryText);
+        }
     }
 }
 /// Draw the recessed center chamber: a soft radial darkening with a faint inner
@@ -511,6 +618,13 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
     const double thermal = std::clamp(warmth, 0.0, 1.0);
     const double ambientC = std::clamp(ambient, 0.0, 1.0);
     const double pulseC = std::clamp(pulse, 0.0, 1.0);
+    // REAL CPU load for the colour/pulse-rate story. `pulse` (above) is the
+    // reactor HEARTBEAT waveform -- load sets its amplitude but a sine sweeps it
+    // 0<->peak every cycle, so it is NOT utilization and must not drive colour.
+    // The true [0,1] utilization is the primary ring's fill fraction, already
+    // carried in the layout (utilizationPercent/100 upstream).
+    const double load =
+        std::clamp(layout.utilizationRing.fillFraction, 0.0, 1.0);
 
     const double signal = thermal + ambientC + pulseC;
     if (signal <= 0.001) {
@@ -544,48 +658,23 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         // --- Armored glass (thick viewport) ---
         double glassOuter = 0.60;
         double glassInner = 0.54;      // glass thickness band
-        // --- Electrical core (living reaction inside the cavity) ---
-        double cavity = 0.50;          // core cavity radius (fraction of R)
-        int primaryArcs = 6;           // FIXED pool; utilization ACTIVATES them
-        int arcSegments = 9;           // segments per major arc (irregular path)
-        double arcStep = 0.5;          // segment length as fraction of cavity/seg
-        double arcJitter = 0.42;       // heading jitter (radians) -> electrical
-        double inwardPull = 0.5;       // containment forcing arcs back to centre
-        int secondaryMax = 2;          // secondary branches per primary (activated)
-        double nucleusRadius = 0.06;   // 6% of cavity: tiny dense point
-        // Depth-pass presence (rear/middle/front hierarchy).
-        double rearAlpha = 0.28;
-        double midAlpha = 0.6;
-        double frontAlpha = 0.92;
-        double haloAlpha = 0.1;        // extremely restrained; removable
-        double coreLineAlpha = 0.85;   // thin white-blue centre on front arcs
-        // Behaviour.
-        double activationBase = 0.18;  // lowest-load activation floor
-        double reconnectChance = 0.5;  // how often arcs reconnect (phase-driven)
-        double stressTempThreshold = 0.80;  // amber stress only above this
-        double metalReflect = 0.35;    // faint cold-blue cast on nearby metal
-        // --- Behaviour mapping (utilization drives INDEPENDENT properties, not
-        //     one global speed; each arc also has its own deterministic
-        //     personality so the six never read as clones) ---
-        double evolSpeedBase = 0.12;   // arc topology evolution rate at idle
-        double evolSpeedLoad = 0.80;   // added evolution rate at full load (curve)
-        double speedVariance = 0.4;    // +/- per-arc speed personality
-        double thicknessLoad = 0.6;    // arcs thicken this much toward full load
-        double thicknessVariance = 0.3;  // +/- per-arc thickness personality
-        double reachLoad = 0.32;       // arcs reach farther out under load
-        double curvatureVariance = 0.5;  // +/- per-arc jitter/curvature character
-        double lifetimeBase = 0.05;    // envelope base rate (slow heartbeat)
-        double lifetimeVariance = 0.6; // per-arc lifetime-period spread
-        double lifetimeOverlap = 0.85; // load raises envelope floor -> arcs
-                                       // overlap (dense) instead of speeding up
-        double nucleusPulseAmpIdle = 0.06;   // subtle size/bright pulse at idle
-        double nucleusPulseAmpLoad = 0.14;   // stronger (never large) at load
-        double nucleusPulseSpeedIdle = 0.5;  // slow heartbeat
-        double nucleusPulseSpeedLoad = 2.0;  // energised, never flashing
-        // Load response CURVE: ease-in so low CPU changes little and activity
-        // ramps sharply near the top. Every load-driven term routes through
-        // pow(pulseC, loadCurveExp). 3.0 -> 10% and 30% look alike; 70%->100%
-        // diverge hard.
+        // --- Compact pulsing core (the load indicator inside the cavity) ---
+        double coreRadius = 0.95;      // fraction of the VISIBLE glass opening
+                                       // (glassInner) -> fills the containment
+        double pulseRadiusAmp = 0.05;  // modest breathing (brightness does more)
+        double pulseSpeedIdle = 0.5;   // slow heartbeat at 0% load
+        double pulseSpeedFull = 2.4;   // aggressive (never strobe) at 100%
+        double coreBrightIdle = 0.7;   // centre alpha at idle
+        double coreBrightFull = 1.0;   // centre alpha at full load (pulse carries
+                                       // the state via BRIGHTNESS, not size)
+        double pulseBrightAmp = 0.5;   // strong, obvious brightness breathing
+        double glowRadius = 1.04;      // thin halo hugging the large body (stays
+                                       // inside the glass clip, no bloom)
+        double glowAlphaIdle = 0.28;   // visible pale-blue glow at idle
+        double glowAlphaFull = 0.6;    // strong orange/red glow at full load
+        // Load response CURVE: ease-in so low CPU changes little and the pulse
+        // speed / colour / glow ramp sharply near the top. Routes through
+        // pow(pulseC, loadCurveExp).
         double loadCurveExp = 3.0;
         // --- Material reflectivities (base gray the star light multiplies) ---
         double titaniumHi = 0.72;      // machined edge catching light
@@ -598,18 +687,13 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
     const double intensity =
         std::clamp(0.36 + 0.30 * pulseC + 0.22 * thermal + 0.12 * ambientC,
                    0.0, 1.0);
-    // The electrical reaction fills a fixed cavity (the machine doesn't move);
-    // its ACTIVITY, not its size, responds to load. `activation` [0,1] smoothly
-    // fades electrical structures in/out -- no abrupt branch-count switching.
-    const double cavityR = R * T.cavity;
-    const double activation =
-        std::clamp(T.activationBase + 0.82 * pulseC, 0.0, 1.0);
-    // Ease-in load response: low CPU changes little; activity ramps sharply near
-    // the top. Every load-driven electrical term routes through this.
-    const double loadCurve = std::pow(pulseC, T.loadCurveExp);
+    // The core sits at the fixed cavity centre; load drives its colour, pulse
+    // and glow. It is sized to the glass opening (see openingR below), so the
+    // energy body fills most of the visible cavity. loadCurve is the shared
+    // ease-in response.
+    const double loadCurve = std::pow(load, T.loadCurveExp);
 
     const QColor starLight = reactorPlasmaColor(thermal, true);
-    const QColor coreLight = reactorPlasmaColor(thermal, false);
     // The single-light-source rule in one function: tint a surface as if lit by
     // the star. `reach` is how much star light gets here (falls with distance /
     // facing away); `mat` is the surface's own reflectivity. reach 0 -> black.
@@ -840,302 +924,124 @@ void paintReactorCore(QPainter& painter, const CpuInstrumentLayout& layout,
         painter.drawEllipse(c, R * T.glassInner, R * T.glassInner);
 
         // =============================================================
-        // LIVING ELECTRICAL CORE. No sphere is drawn. The volume is IMPLIED by
-        // the spatial distribution of irregular electrical arcs branching from a
-        // tiny central nucleus. Deterministic in flowPhase (same phase -> same
-        // geometry; smooth evolution, no per-frame randomness). A FIXED pool of
-        // arcs is ACTIVATED by utilization (fade in/out), never switched on.
+        // COMPACT PULSING CORE. One small, dense, load-driven energy source --
+        // no arcs, no branches, no plasma texture. CPU load is readable at a
+        // glance from three things only: (1) colour, (2) pulse speed, (3) pulse
+        // brightness/size. The machine is the structure; this is the status
+        // indicator it contains.
         //
-        // Depth by hierarchy: rear (deep cobalt, thin, soft) -> middle (electric
-        // blue) -> front (crisp cyan, white-blue cores). Per arc: faint halo ->
-        // saturated body -> thin white-blue core (halo removable, still crisp).
-        // Temperature = localized stress: blue identity dominant; amber/orange
-        // only on stressed outer/contact segments. Glow minimal.
+        // Load [0,1] drives, via an ease-in curve:
+        //   colour  -> coreLoadColor(): icy cyan -> blue -> deep blue ->
+        //              luminous bridge -> yellow -> orange -> red
+        //   pulse   -> speed (slow heartbeat -> fast, never strobe) and a strong
+        //              BRIGHTNESS swing; radius only breathes a little (~9%) so
+        //              it stays a compact seed, never a growing orb
+        //   glow    -> a restrained LOCAL halo in the same load colour; kept to
+        //              a small multiple of the core radius so it never washes the
+        //              metal or fills the chamber
         // =============================================================
-        const double coreClear = std::max(2.0, clr * 0.42);  // text-safe centre
+        // The core is sized to the VISIBLE CAVITY (the glass opening), NOT to
+        // the text: the outlined percentage (white fill / dark outline / cyan
+        // glow) is designed to float on top of it. The energy body fills ~70% of
+        // the opening (leaving a dark containment ring to the wall). Only the
+        // bright additive hot-CENTRE stays under a tight guard so it never
+        // destroys glyph contrast.
+        const double openingR = R * T.glassInner;           // visible cavity
+        const double hotClear = std::max(2.0, clr * 0.42);  // text-safe centre
+        // Colour tracks REAL load directly (linear bands: 0-25 icy .. 95-100
+        // red), NOT the ease-in curve and NOT the pulse waveform.
+        const QColor loadColor = coreLoadColor(load);
+        // TEMPORARY diagnostic (off by default): proves the colour pipeline is
+        // load-driven at runtime. Enable with QT_LOGGING_RULES=darkspark.reactor.debug=true
+        qCDebug(lcReactorDebug)
+            << "reactor core: load=" << load << "pulse(wave)=" << pulseC
+            << "loadCurve=" << loadCurve << "-> rgb(" << loadColor.red()
+            << loadColor.green() << loadColor.blue() << ")";
+        // Pulse: speed and brightness ramp with the ease-in load curve. The beat
+        // is a smooth sine -- rhythmic, never flashing.
+        const double pulseSpeed =
+            T.pulseSpeedIdle
+            + (T.pulseSpeedFull - T.pulseSpeedIdle) * loadCurve;
+        const double beat = std::sin(flowPhase * pulseSpeed);  // [-1,1]
+        const double beat01 = 0.5 * (beat + 1.0);              // [0,1]
+        // Brightness carries most of the state; obvious low->high swing.
+        const double coreBright =
+            (T.coreBrightIdle
+             + (T.coreBrightFull - T.coreBrightIdle) * loadCurve)
+            * (1.0 - T.pulseBrightAmp + T.pulseBrightAmp * beat01);
+        // Body sized to the opening; a hard ceiling keeps a dark gap to the wall
+        // even at peak pulse (never touches the glass/metal).
+        const double baseR = openingR * T.coreRadius;
+        const double coreR = std::min(openingR * 0.98,
+                                      baseR * (1.0 + T.pulseRadiusAmp * beat));
 
-        // Deterministic pseudo-noise in [-1,1] from integer-ish seeds + phase.
-        auto wob = [](double a, double b, double ph) {
-            const double v = std::sin(a * 12.9898 + b * 78.233 + ph)
-                             * 43758.5453;
-            return 2.0 * (v - std::floor(v)) - 1.0;
-        };
-
-        // One arc: an irregular segmented polyline from the nucleus outward,
-        // bending back toward centre (containment). Drawn as halo/body/core in a
-        // colour set by its depth pass and any thermal stress near its far end.
-        // pass: 0 rear, 1 middle, 2 front. `act` scales visibility (activation).
-        auto drawArc = [&](int seed, double ang0, int pass, double act,
-                           bool secondary, double evolRate, double spdMul,
-                           double curveMul, double thickMul) {
-            if (act <= 0.02) {
-                return;
-            }
-            // Outward reach grows with load (arcs push toward containment).
-            const double loadReach = 1.0 + T.reachLoad * loadCurve;
-            const double reach =
-                cavityR * (secondary ? 0.55 : 0.94) * loadReach;
-            const int segs = secondary ? T.arcSegments / 2 : T.arcSegments;
-            const double segLen = reach * T.arcStep / segs * 2.0;
-            // Build points.
-            QPointF pts[16];
-            int n = 0;
-            double px = c.x();
-            double py = c.y();
-            double heading = ang0;
-            double rNow = coreClear;
-            pts[n++] = QPointF(px, py);
-            for (int sIdx = 1; sIdx <= segs && n < 16; ++sIdx) {
-                const double sf = static_cast<double>(sIdx) / segs;
-                // Heading jitter: electrical direction changes, evolving in phase.
-                // Per-arc evolution: its own rate (load-scaled) and phase seat,
-                // so no two arcs crawl at the same pace.
-                const double ph = flowPhase * evolRate * spdMul + seed * 1.7;
-                heading += T.arcJitter * curveMul
-                           * wob(seed + sIdx * 0.7, pass + sf, ph);
-                // Containment: dampen the outward drift as we get far out, so the
-                // path curls rather than shooting straight (the radial clamp
-                // below is the hard limit; this is the soft bend).
-                const double pull = T.inwardPull * sf * sf;
-                heading *= (1.0 - pull * 0.5);
-                const double step = segLen * (0.7 + 0.5 * (1.0 - sf));
-                px += step * std::cos(heading);
-                py -= step * std::sin(heading);
-                // Radial clamp: never leave the cavity (machine forces it back).
-                const double dx = px - c.x();
-                const double dy = py - c.y();
-                double rr = std::sqrt(dx * dx + dy * dy);
-                const double rMax = reach * (1.0 - 0.15 * pull);
-                if (rr > rMax) {
-                    // Bend sharply along the boundary then turn inward.
-                    const double wallAng = std::atan2(-dy, dx);
-                    px = c.x() + rMax * std::cos(wallAng);
-                    py = c.y() - rMax * std::sin(wallAng);
-                    heading = wallAng + M_PI * 0.6;  // turn back inward
-                    rr = rMax;
-                }
-                rNow = rr;
-                pts[n++] = QPointF(px, py);
-            }
-            (void)rNow;
-            // Contact brightening: how close the far end got to the wall.
-            const double contact =
-                std::clamp((std::sqrt(std::pow(pts[n - 1].x() - c.x(), 2)
-                                      + std::pow(pts[n - 1].y() - c.y(), 2))
-                            / cavityR - 0.7)
-                               / 0.3,
-                           0.0, 1.0);
-            // Depth-pass colour + presence. Arcs are noticeably thicker now
-            // (energy tearing through the volume), scaled by load and each arc's
-            // own thickness personality. The white centreline stays narrow.
-            const double thickK =
-                thickMul * (1.0 + T.thicknessLoad * loadCurve);
-            double baseAlpha;
-            QColor body;
-            double bodyW;
-            if (pass == 0) {  // rear
-                body = reactorPlasmaColor(thermal, true).darker(220);
-                baseAlpha = T.rearAlpha;
-                bodyW = std::max(1.6, cavityR * 0.030 * thickK);
-            } else if (pass == 1) {  // middle
-                body = reactorPlasmaColor(thermal, true);
-                baseAlpha = T.midAlpha;
-                bodyW = std::max(2.0, cavityR * 0.050 * thickK);
-            } else {  // front
-                body = reactorPlasmaColor(thermal, true).lighter(120);
-                baseAlpha = T.frontAlpha;
-                bodyW = std::max(2.4, cavityR * 0.060 * thickK);
-            }
-            // Thermal stress: only near the far/contact end, only when hot.
-            const double stress =
-                thermal > T.stressTempThreshold
-                    ? (thermal - T.stressTempThreshold)
-                          / (1.0 - T.stressTempThreshold) * contact
-                    : 0.0;
-            if (stress > 0.02) {
-                QColor amber(196, 120, 44);
-                body = QColor(
-                    static_cast<int>(std::clamp(
-                        body.red() + (amber.red() - body.red()) * stress, 0.0,
-                        255.0)),
-                    static_cast<int>(std::clamp(
-                        body.green() + (amber.green() - body.green()) * stress,
-                        0.0, 255.0)),
-                    static_cast<int>(std::clamp(
-                        body.blue() + (amber.blue() - body.blue()) * stress, 0.0,
-                        255.0)));
-            }
-            QPainterPath path;
-            path.moveTo(pts[0]);
-            for (int k = 1; k < n; ++k) {
-                path.lineTo(pts[k]);
-            }
-            const double a = baseAlpha * act;
-            // (1) Halo -- extremely restrained, front pass only, removable.
-            if (pass == 2 && T.haloAlpha > 0.0) {
-                painter.setCompositionMode(QPainter::CompositionMode_Plus);
-                QColor halo = body.lighter(140);
-                halo.setAlphaF(static_cast<float>(
-                    std::clamp(T.haloAlpha * act * (0.6 + 0.6 * contact), 0.0,
-                               0.2)));
-                QPen hp(halo);
-                hp.setWidthF(std::min(bodyW * 1.8, cavityR * 0.11));
-                hp.setCapStyle(Qt::RoundCap);
-                hp.setJoinStyle(Qt::RoundJoin);
-                painter.setPen(hp);
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(path);
-            }
-            // (2) Saturated body -- the main visible electricity.
+        // (1) LOCAL GLOW -- restrained halo in the load colour. Normal alpha (not
+        // additive) so it stays local and does not bloom the metal. Radius is a
+        // small multiple of the core; it never reaches the chamber wall.
+        {
+            const double glowA =
+                (T.glowAlphaIdle
+                 + (T.glowAlphaFull - T.glowAlphaIdle) * loadCurve)
+                * (0.75 + 0.25 * beat01);
+            const double glowR = coreR * T.glowRadius;
+            QRadialGradient gg(c, glowR);
+            QColor g0 = loadColor;
+            g0.setAlphaF(static_cast<float>(std::clamp(glowA, 0.0, 0.7)));
+            QColor gMid = loadColor;
+            gMid.setAlphaF(static_cast<float>(std::clamp(glowA * 0.4, 0.0,
+                                                         0.45)));
+            QColor g1 = loadColor;
+            g1.setAlphaF(0.0f);
+            gg.setColorAt(0.0, g0);
+            gg.setColorAt(0.45, gMid);
+            gg.setColorAt(1.0, g1);
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            QColor bc = body;
-            bc.setAlphaF(static_cast<float>(
-                std::clamp(a * (0.7 + 0.3 * contact), 0.0, 0.95)));
-            QPen bp(bc);
-            bp.setWidthF(bodyW);
-            bp.setCapStyle(Qt::RoundCap);
-            bp.setJoinStyle(Qt::RoundJoin);
-            painter.setPen(bp);
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(path);
-            // (3) Thin white-blue core -- front (and contact) only.
-            if (pass == 2) {
-                painter.setCompositionMode(QPainter::CompositionMode_Plus);
-                QColor coreC(226, 240, 255);
-                coreC.setAlphaF(static_cast<float>(
-                    std::clamp(T.coreLineAlpha * act * (0.5 + 0.5 * contact),
-                               0.0, 0.95)));
-                QPen cpn(coreC);
-                cpn.setWidthF(std::clamp(bodyW * 0.28, 1.0, cavityR * 0.014));
-                cpn.setCapStyle(Qt::RoundCap);
-                painter.setPen(cpn);
-                painter.drawPath(path);
-                painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            }
-            // Faint cold-blue reflected light on the nearest inner metal when an
-            // arc's far end nears the wall (lighting only -- no geometry change).
-            if (contact > 0.5 && pass == 2) {
-                painter.setCompositionMode(QPainter::CompositionMode_Plus);
-                QColor refl = reactorPlasmaColor(thermal, true);
-                refl.setAlphaF(static_cast<float>(
-                    std::clamp(T.metalReflect * act * (contact - 0.5) * 2.0, 0.0,
-                               0.3)));
-                QRadialGradient rg(pts[n - 1], cavityR * 0.4);
-                rg.setColorAt(0.0, refl);
-                QColor re = refl;
-                re.setAlphaF(0.0f);
-                rg.setColorAt(1.0, re);
-                painter.setBrush(rg);
-                painter.setPen(Qt::NoPen);
-                painter.drawEllipse(pts[n - 1], cavityR * 0.4, cavityR * 0.4);
-                painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-            }
-        };
-
-        // Draw the FIXED pool across depth passes, rear -> front. Each arc has
-        // its own deterministic PERSONALITY (speed, curvature, thickness, phase
-        // seat, and a lifetime period), so the six never read as clones. A
-        // continuous lifetime ENVELOPE makes each arc wax and wane on its own
-        // slow, deliberately-desynchronised cycle: at idle some sit near-dormant
-        // for long stretches while one or two dominate; as load rises the
-        // envelope floor lifts (lifetimeOverlap) so more arcs are active at once
-        // -- dense, not fast-forwarded. Utilization also independently drives
-        // evolution speed, thickness, reach, branching and reconnection.
-        const int passOf[6] = {0, 2, 1, 2, 0, 1};
-        // Load-driven evolution rate: gentle, non-linear (^0.7) so high load is
-        // more active without feeling like fast-forward.
-        const double evolRate =
-            T.evolSpeedBase + T.evolSpeedLoad * loadCurve;
-        // Deliberately incommensurate lifetime multipliers -> peaks rarely align.
-        const double lifeMul[6] = {1.00, 1.37, 0.73, 1.61, 0.89, 1.19};
-        for (int i = 0; i < T.primaryArcs; ++i) {
-            const double fi = static_cast<double>(i);
-            // Per-arc personality, deterministic from the seed.
-            const double pSpeed =
-                1.0 + T.speedVariance * wob(fi, 1.0, 0.0);
-            const double pCurve =
-                1.0 + T.curvatureVariance * wob(fi, 2.0, 0.0);
-            const double pThick =
-                1.0 + T.thicknessVariance * wob(fi, 3.0, 0.0);
-            const double pSeat = wob(fi, 4.0, 0.0);  // phase-seat offset [-1,1]
-            // Lifetime envelope: continuous cosine on this arc's own slow period.
-            // Floor lifts with load so arcs overlap (dense) at high CPU.
-            const double lifePeriod =
-                T.lifetimeBase
-                * (1.0 + T.lifetimeVariance * (lifeMul[i % 6] - 1.0));
-            const double envRaw =
-                0.5 * (std::sin(flowPhase * lifePeriod + pSeat * 6.2831) + 1.0);
-            const double floor = T.lifetimeOverlap * loadCurve;
-            const double envelope = std::clamp(floor + (1.0 - floor) * envRaw,
-                                               0.0, 1.0);
-            // Angular seat: individual, drifting; less radial symmetry.
-            const double ang0 = (kTwoPi * i) / T.primaryArcs
-                                + 0.6 * pSeat
-                                + 0.5 * std::sin(flowPhase * 0.2 * pSpeed
-                                                 + fi * 1.3);
-            // Activation = load gating * this arc's lifetime envelope.
-            const double gate = std::clamp(fi / T.primaryArcs, 0.0, 1.0);
-            const double loadAct =
-                std::clamp((activation - gate * 0.5) / 0.5, 0.0, 1.0)
-                * (0.5 + 0.5 * activation);
-            const double act = loadAct * envelope;
-            drawArc(i, ang0, passOf[i], act, false, evolRate, pSpeed, pCurve,
-                    pThick);
-            // Secondary branches: more common under load, gated by the parent's
-            // envelope so they belong to the same living structure.
-            for (int sB = 0; sB < T.secondaryMax; ++sB) {
-                const double sAct =
-                    std::clamp((activation - 0.45 - 0.15 * sB) / 0.4, 0.0, 1.0);
-                // Reconnection frequency rises with load.
-                const double reconThresh =
-                    T.reconnectChance * (0.5 + 0.9 * loadCurve);
-                const double recon =
-                    0.5 * (std::sin(flowPhase * 0.4 * pSpeed + fi * 2.0
-                                    + sB * 3.1)
-                           + 1.0);
-                const bool reconnect = recon < reconThresh;
-                const double sAng = ang0 + (sB == 0 ? 0.6 : -0.7)
-                                    + (reconnect ? M_PI : 0.0)
-                                    + 0.3 * std::sin(flowPhase * 0.3 * pSpeed
-                                                     + fi + sB);
-                drawArc(100 + i * 3 + sB, sAng, 2, sAct * act, true, evolRate,
-                        pSpeed, pCurve * 1.2, pThick * 0.6);
-            }
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(gg);
+            painter.drawEllipse(c, glowR, glowR);
         }
 
-        // NUCLEUS: tiny, intensely bright blue-white, dead-centre, where the
-        // branches originate/reconnect. A small living PULSE energises it from
-        // the centre: slow faint heartbeat at idle, stronger/faster (never
-        // flashing, never large) under load. Capped under the text-clearance
-        // guard so the percentage stays readable. A dense seed -- never an orb.
+        // (2) THE CORE -- a large dense energy mass. The body must READ as the
+        // load colour, so the white-hot heart is kept TINY (inner ~12%) and the
+        // saturated load colour owns the majority of the area, fading to a darker
+        // shell at the rim. Hot heart is additive (emits); body is normal alpha.
         {
-            const double pulseAmp =
-                T.nucleusPulseAmpIdle
-                + (T.nucleusPulseAmpLoad - T.nucleusPulseAmpIdle) * loadCurve;
-            const double pulseSpeed =
-                T.nucleusPulseSpeedIdle
-                + (T.nucleusPulseSpeedLoad - T.nucleusPulseSpeedIdle) * loadCurve;
-            const double beat = std::sin(flowPhase * pulseSpeed);
-            const double nucR = std::min(coreClear * 0.9,
-                                         cavityR * T.nucleusRadius)
-                                * (1.0 + pulseAmp * beat);
-            painter.setCompositionMode(QPainter::CompositionMode_Plus);
-            QRadialGradient ng(c, std::max(2.0, nucR));
-            QColor nWhite(232, 245, 255);
-            nWhite.setAlphaF(static_cast<float>(
-                std::clamp(0.8 + 0.18 * activation + 0.1 * pulseAmp * beat, 0.0,
-                           0.98)));
-            QColor nTint = coreLight.lighter(150);
-            nTint.setAlphaF(static_cast<float>(0.5 + 0.3 * activation));
-            QColor nEdge = coreLight;
-            nEdge.setAlphaF(0.0f);
-            ng.setColorAt(0.0, nWhite);
-            ng.setColorAt(0.45, nWhite);
-            ng.setColorAt(0.8, nTint);
-            ng.setColorAt(1.0, nEdge);
+            QRadialGradient cg(c, coreR);
+            QColor heart(255, 255, 255);
+            heart.setAlphaF(static_cast<float>(std::clamp(coreBright, 0.0, 1.0)));
+            // Saturated load colour holds across most of the body.
+            QColor bodyCol = loadColor;
+            bodyCol.setAlphaF(static_cast<float>(
+                std::clamp(0.88 + 0.12 * coreBright, 0.0, 1.0)));
+            QColor outer = loadColor.darker(180);  // dense darker shell
+            outer.setAlphaF(static_cast<float>(std::clamp(0.8 + 0.2 * coreBright,
+                                                          0.0, 0.98)));
+            QColor edge = loadColor.darker(300);
+            edge.setAlphaF(0.0f);
+            cg.setColorAt(0.0, heart);
+            cg.setColorAt(0.12, bodyCol);   // white heart is tiny
+            cg.setColorAt(0.72, bodyCol);   // saturated colour owns the body
+            cg.setColorAt(0.93, outer);
+            cg.setColorAt(1.0, edge);
+            // Coloured body first (normal alpha, crisp).
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
             painter.setPen(Qt::NoPen);
-            painter.setBrush(ng);
-            painter.drawEllipse(c, std::max(2.0, nucR), std::max(2.0, nucR));
+            painter.setBrush(cg);
+            painter.drawEllipse(c, coreR, coreR);
+            // Additive white highlight at the very centre so it emits light.
+            // Held under the tight text guard so it never washes the glyphs.
+            const double hotR = std::min(hotClear, coreR * 0.5);
+            QRadialGradient hg(c, std::max(1.0, hotR));
+            QColor h0(255, 255, 255);
+            h0.setAlphaF(static_cast<float>(
+                std::clamp(0.5 * coreBright, 0.0, 0.95)));
+            QColor h1(255, 255, 255);
+            h1.setAlphaF(0.0f);
+            hg.setColorAt(0.0, h0);
+            hg.setColorAt(1.0, h1);
+            painter.setCompositionMode(QPainter::CompositionMode_Plus);
+            painter.setBrush(hg);
+            painter.drawEllipse(c, std::max(1.0, hotR), std::max(1.0, hotR));
             painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         }
     }
