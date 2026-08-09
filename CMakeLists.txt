@@ -74,6 +74,8 @@ qt_add_executable(darkspark-desktop
     src/services/GpuTelemetryService.hpp
     src/services/GpuThermalService.cpp
     src/services/GpuThermalService.hpp
+    src/services/GpuVramService.cpp
+    src/services/GpuVramService.hpp
     src/services/GpuDeviceSelector.cpp
     src/services/GpuDeviceSelector.hpp
     src/desktop/DesktopWindow.cpp
@@ -493,6 +495,28 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-gpu-service-test
         COMMAND darkspark-gpu-service-test
+    )
+
+    # GPU VRAM service test: injected-source seams (used/total readings), valid
+    # parse, malformed/missing/used>total -> Unavailable, and the "gpu-vram" key
+    # on emitted samples. QObject-derived, so links Qt6::Core. Own main().
+    add_executable(darkspark-gpu-vram-service-test
+        tests/services/GpuVramServiceTest.cpp
+        src/services/GpuVramService.cpp
+        src/services/GpuVramService.hpp
+        src/services/GpuDeviceSelector.cpp
+        src/services/GpuDeviceSelector.hpp
+	src/interfaces/ITelemetryProvider.hpp
+        src/models/MetricSample.cpp
+    )
+    target_include_directories(darkspark-gpu-vram-service-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-gpu-vram-service-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-gpu-vram-service-test
+        COMMAND darkspark-gpu-vram-service-test
     )
 
     # GPU device-selection test: pure selection rule via injected candidate

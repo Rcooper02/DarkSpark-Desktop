@@ -40,6 +40,46 @@ MetricSample temp(double v, const char* key, MetricState st = MetricState::Fresh
                                    MetricUnit::Celsius, 1, key);
 }
 
+MetricSample vram(MetricId id, double v, const char* key,
+                  MetricState st = MetricState::Fresh) {
+    if (st == MetricState::Unavailable)
+        return MetricSample::unavailable(id, 1, key);
+    if (st == MetricState::Stale)
+        return *MetricSample::tryStale(id, v, MetricUnit::Bytes, 1, key);
+    return *MetricSample::tryFresh(id, v, MetricUnit::Bytes, 1, key);
+}
+
+void test_vram_updates_with_key() {
+    GpuInstrumentModelAdapter a;
+    CHECK(a.apply(vram(MetricId::MemoryUsedBytes, 7.7e9, "gpu-vram")));
+    CHECK(a.apply(vram(MetricId::MemoryTotalBytes, 1.6e10, "gpu-vram")));
+    CHECK(near(a.model().vramUsedBytes, 7.7e9));
+    CHECK(near(a.model().vramTotalBytes, 1.6e10));
+    CHECK(a.model().vramAvailability == ValueAvailability::Live);
+}
+void test_keyless_memory_is_system_ram_ignored() {
+    // MemoryUsedBytes/MemoryTotalBytes with NO key are SYSTEM RAM: the GPU
+    // adapter must ignore them so RAM never leaks into the VRAM line.
+    GpuInstrumentModelAdapter a;
+    CHECK(!a.apply(vram(MetricId::MemoryUsedBytes, 4.0e9, "")));
+    CHECK(!a.apply(vram(MetricId::MemoryTotalBytes, 3.2e10, "")));
+    CHECK(a.model().vramAvailability == ValueAvailability::Absent);
+    CHECK(near(a.model().vramUsedBytes, 0.0));
+}
+void test_vram_unavailable_leaves_util_temp() {
+    GpuInstrumentModelAdapter a;
+    a.apply(util(50.0));
+    a.apply(temp(70.0, "gpu"));
+    a.apply(vram(MetricId::MemoryUsedBytes, 0.0, "gpu-vram",
+                 MetricState::Unavailable));
+    CHECK(a.model().vramAvailability == ValueAvailability::Absent);
+    // Utilization and temperature are undisturbed.
+    CHECK(near(a.model().utilizationPercent, 50.0));
+    CHECK(a.model().utilizationAvailability == ValueAvailability::Live);
+    CHECK(near(a.model().temperatureCelsius, 70.0));
+    CHECK(a.model().temperatureAvailability == ValueAvailability::Live);
+}
+
 void test_utilization_updates() {
     GpuInstrumentModelAdapter a;
     CHECK(a.apply(util(73.0)));
@@ -115,6 +155,9 @@ int main() {
     test_adapter_independence();
     test_initial_absent();
     test_independent_metric_availability();
+    test_vram_updates_with_key();
+    test_keyless_memory_is_system_ram_ignored();
+    test_vram_unavailable_leaves_util_temp();
     if (g_failures == 0) {
         std::puts("All GpuInstrumentModelAdapter tests passed.");
         return 0;

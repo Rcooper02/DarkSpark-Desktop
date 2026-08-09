@@ -48,11 +48,33 @@ bool GpuInstrumentModelAdapter::apply(const MetricSample& sample) {
         model_.temperatureAvailability = avail;
         return true;
     }
+    case MetricId::MemoryUsedBytes: {
+        // GPU VRAM only: the sample MUST carry the "gpu-vram" key. Keyless
+        // MemoryUsedBytes is SYSTEM RAM (from MemoryTelemetryService) and is not
+        // ours -- ignore it so the two never cross.
+        if (sample.sensorKey() != kVramKey) {
+            return false;
+        }
+        model_.vramAvailability = availabilityFor(sample.state());
+        if (sample.value().has_value()) {
+            model_.vramUsedBytes = sample.value().value();
+        }
+        return true;
+    }
+    case MetricId::MemoryTotalBytes: {
+        // GPU VRAM only (see MemoryUsedBytes above). Availability is driven by
+        // the used sample; total just supplies the denominator.
+        if (sample.sensorKey() != kVramKey) {
+            return false;
+        }
+        if (sample.value().has_value()) {
+            model_.vramTotalBytes = sample.value().value();
+        }
+        return true;
+    }
     case MetricId::CpuTotalUtilization:
     case MetricId::CpuTemperature:
     case MetricId::MemoryUtilization:
-    case MetricId::MemoryUsedBytes:
-    case MetricId::MemoryTotalBytes:
     case MetricId::CoolingPrimary:
     case MetricId::CoolingSecondary:
     case MetricId::CoolingCoolantTemp:

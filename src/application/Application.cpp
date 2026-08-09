@@ -12,6 +12,7 @@
 #include "deck/instruments/GpuInstrumentModelAdapter.hpp"
 #include "services/GpuTelemetryService.hpp"
 #include "services/GpuThermalService.hpp"
+#include "services/GpuVramService.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
@@ -48,6 +49,11 @@ namespace darkspark::application {
 
 namespace {
 Q_LOGGING_CATEGORY(lcApp, "darkspark.application")
+
+// Diagnostic-only category for the GPU composition-root wiring (provider start,
+// priming, and sample->adapter->instrument flow). OFF by default; enable with
+// QT_LOGGING_RULES="darkspark.wiring.gpu=true". Throttled to model changes.
+Q_LOGGING_CATEGORY(lcGpuWiring, "darkspark.wiring.gpu")
 }
 
 Application::Application(QApplication& qtApp) : qtApp_(qtApp) {}
@@ -309,20 +315,31 @@ void Application::startCommandDeck() {
         std::make_shared<deck::instruments::GpuInstrumentModelAdapter>();
     auto applyGpuSample =
         [gpuAdapter, gpu](const models::MetricSample& sample) {
-            if (gpuAdapter->apply(sample)) {
+            const bool changed = gpuAdapter->apply(sample);
+            // Diagnostic: a sample arrived; did it change the model? (Logged
+            // only when it did, so a steady stream doesn't flood.)
+            if (changed) {
+                qCDebug(lcGpuWiring)
+                    << "gpu sample metric=" << static_cast<int>(sample.id())
+                    << "state=" << static_cast<int>(sample.state())
+                    << "-> model updated";
                 gpu->setModel(gpuAdapter->model());
             }
         };
 
     auto* gpuUtil = new services::GpuTelemetryService(window.get());
     auto* gpuThermal = new services::GpuThermalService(window.get());
+    auto* gpuVram = new services::GpuVramService(window.get());
     for (interfaces::ITelemetryProvider* provider :
          {static_cast<interfaces::ITelemetryProvider*>(gpuUtil),
-          static_cast<interfaces::ITelemetryProvider*>(gpuThermal)}) {
+          static_cast<interfaces::ITelemetryProvider*>(gpuThermal),
+          static_cast<interfaces::ITelemetryProvider*>(gpuVram)}) {
         connect(provider, &interfaces::ITelemetryProvider::readingChanged,
                 window.get(), applyGpuSample);
         provider->start();
         const QList<models::MetricSample> primed = provider->currentSamples();
+        qCInfo(lcGpuWiring)
+            << "gpu provider started and primed" << primed.size() << "sample(s)";
         for (const models::MetricSample& sample : primed) {
             applyGpuSample(sample);
         }

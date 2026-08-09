@@ -90,6 +90,7 @@ private:
     detail::GpuThermalSources sources_;
     QTimer* timer_;
     std::optional<double> lastValidValue_;
+    std::optional<double> lastLoggedValue_;  ///< diagnostic throttle (>=1 C)
     models::MetricSample current_;
 };
 

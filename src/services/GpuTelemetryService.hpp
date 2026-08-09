@@ -80,6 +80,7 @@ private:
     detail::GpuUtilizationSources sources_;
     QTimer* timer_;
     std::optional<double> lastValidValue_;
+    std::optional<double> lastLoggedValue_;  ///< diagnostic throttle (>=1% delta)
     models::MetricSample current_;
 };
 

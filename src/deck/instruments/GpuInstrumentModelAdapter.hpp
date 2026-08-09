@@ -36,6 +36,10 @@ public:
     /// edge) under this single stable key, so the adapter is independent of
     /// which label the hardware exposed.
     static constexpr const char* kPrimaryTempKey = "gpu";
+    /// VRAM samples (MemoryUsedBytes/MemoryTotalBytes) carry this key so the GPU
+    /// adapter consumes GPU VRAM but never SYSTEM RAM (which is emitted under the
+    /// same MetricIds with NO key by MemoryTelemetryService).
+    static constexpr const char* kVramKey = "gpu-vram";
 
     /// Apply one telemetry sample. Returns true if it changed the model (the
     /// sample was one this instrument cares about and altered a value or

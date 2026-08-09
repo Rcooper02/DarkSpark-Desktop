@@ -6,6 +6,7 @@
 #include <QLoggingCategory>
 
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -110,6 +111,11 @@ void GpuTelemetryService::start() {
     if (timer_->isActive()) {
         return;
     }
+    // Diagnostic: confirm the service actually starts and whether it has a
+    // reader bound (an empty selected path yields a null read -> Unavailable).
+    qCInfo(lcGpuTelemetry)
+        << "gpu utilization service start: poll=" << kPollIntervalMs
+        << "ms readerBound=" << static_cast<bool>(sources_.readBusyPercent);
     timer_->start();
 }
 
@@ -163,6 +169,16 @@ void GpuTelemetryService::poll() {
     if (current_.state() != previous.state()) {
         qCInfo(lcGpuTelemetry)
             << "gpu telemetry state ->" << static_cast<int>(current_.state());
+    }
+    // Diagnostic (throttled): log the value only when it moves by >=1 percentage
+    // point, so a steady load doesn't flood the console every second.
+    if (current_.value().has_value()) {
+        const double v = current_.value().value();
+        if (!lastLoggedValue_.has_value()
+            || std::abs(v - *lastLoggedValue_) >= 1.0) {
+            qCDebug(lcGpuTelemetry) << "gpu utilization =" << v << "%";
+            lastLoggedValue_ = v;
+        }
     }
     emit readingChanged(current_);
 }

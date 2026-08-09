@@ -5,12 +5,19 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLoggingCategory>
 
 #include <algorithm>
 
 namespace darkspark::services {
 
 namespace {
+
+// Diagnostic-only category for GPU discovery/selection. OFF by default; enable
+// with QT_LOGGING_RULES="darkspark.selection.gpu=true". Logs the discovered
+// candidates and the final choice ONCE per selection call (startup), never per
+// frame. No behaviour change.
+Q_LOGGING_CATEGORY(lcGpuSelection, "darkspark.selection.gpu")
 
 /// Count PCI address segments (e.g. "0000:03:00.0") in a resolved device path.
 /// Integrated GPUs are shallow root-complex endpoints; discrete GPUs sit behind
@@ -174,7 +181,38 @@ std::optional<GpuDeviceSelection> selectGpuDevice(
                                : std::vector<GpuHwmonCandidate>{};
     const QString override =
         sources.explicitDevicePath ? sources.explicitDevicePath() : QString();
-    return detail::selectFrom(candidates, hwmons, override);
+
+    // Diagnostic: what did we discover? (once, at selection time.)
+    qCInfo(lcGpuSelection) << "GPU discovery:" << candidates.size()
+                           << "candidate(s)," << hwmons.size() << "hwmon(s);"
+                           << "override=" << (override.isEmpty() ? "<none>"
+                                                                 : override);
+    for (const GpuCandidate& c : candidates) {
+        qCInfo(lcGpuSelection)
+            << "  candidate: drm=" << c.drmCardPath
+            << "resolved=" << c.resolvedDevicePath
+            << "pcieDepth=" << c.pcieDepth << "busy=" << c.busyPercentPath;
+    }
+    for (const GpuHwmonCandidate& h : hwmons) {
+        qCInfo(lcGpuSelection) << "  hwmon: dir=" << h.hwmonPath
+                               << "resolved=" << h.resolvedDevicePath;
+    }
+
+    const std::optional<GpuDeviceSelection> sel =
+        detail::selectFrom(candidates, hwmons, override);
+    if (sel) {
+        qCInfo(lcGpuSelection)
+            << "GPU selected: drm=" << sel->drmCardPath
+            << "resolved=" << sel->resolvedDevicePath
+            << "busy=" << sel->busyPercentPath
+            << "hwmon=" << (sel->hasHwmon ? sel->hwmonPath : QString("<none>"))
+            << "hasHwmon=" << sel->hasHwmon;
+    } else {
+        qCWarning(lcGpuSelection)
+            << "GPU selection FAILED: no AMD GPU with readable gpu_busy_percent"
+               " was found. The GPU instrument will read Unavailable.";
+    }
+    return sel;
 }
 
 std::optional<GpuDeviceSelection> selectGpuDevice() {

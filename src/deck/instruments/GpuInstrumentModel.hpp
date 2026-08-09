@@ -28,6 +28,13 @@ struct GpuInstrumentModel {
     /// GPU temperature, degrees Celsius. The secondary metric.
     double temperatureCelsius = 0.0;
     ValueAvailability temperatureAvailability = ValueAvailability::Absent;
+
+    /// GPU VRAM used / total, in bytes. The tertiary metric, shown as a third
+    /// caption line ("VRAM x.x / y.y GB"). Availability is shared: both figures
+    /// come from the same reading, so one flag governs the pair.
+    double vramUsedBytes = 0.0;
+    double vramTotalBytes = 0.0;
+    ValueAvailability vramAvailability = ValueAvailability::Absent;
 };
 
 }  // namespace darkspark::deck::instruments

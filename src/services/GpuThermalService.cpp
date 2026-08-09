@@ -8,6 +8,7 @@
 #include <QLoggingCategory>
 #include <QTextStream>
 
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -152,6 +153,14 @@ void GpuThermalService::start() {
     if (timer_->isActive()) {
         return;
     }
+    // Diagnostic: resolve and log the temperature input path once at start (or
+    // note that no hwmon/sensor was found -> Unavailable, degrades gracefully).
+    const std::optional<QString> path =
+        sources_.discoverInputPath ? sources_.discoverInputPath() : std::nullopt;
+    qCInfo(lcGpuThermal) << "gpu thermal service start: poll=" << kPollIntervalMs
+                         << "ms tempInput="
+                         << (path && !path->isEmpty() ? *path
+                                                      : QString("<none>"));
     timer_->start();
 }
 
@@ -204,6 +213,15 @@ void GpuThermalService::poll() {
     if (current_.state() != previous.state()) {
         qCInfo(lcGpuThermal)
             << "gpu thermal state ->" << static_cast<int>(current_.state());
+    }
+    // Diagnostic (throttled): log temperature only when it moves >=1 C.
+    if (current_.value().has_value()) {
+        const double v = current_.value().value();
+        if (!lastLoggedValue_.has_value()
+            || std::abs(v - *lastLoggedValue_) >= 1.0) {
+            qCDebug(lcGpuThermal) << "gpu temperature =" << v << "C";
+            lastLoggedValue_ = v;
+        }
     }
     emit readingChanged(current_);
 }

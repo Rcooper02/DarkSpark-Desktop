@@ -76,6 +76,8 @@ private:
     // unsubscribes when hidden, so hidden instruments do no animation work.
     AnimationClock* clock_ = nullptr;
     bool subscribed_ = false;
+    bool loggedFirstModel_ = false;  ///< diagnostic latch (first setModel)
+    bool loggedFirstPaint_ = false;  ///< diagnostic latch (first paintEvent)
 };
 
 }  // namespace darkspark::deck::instruments

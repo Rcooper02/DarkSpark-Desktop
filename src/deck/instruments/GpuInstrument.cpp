@@ -4,11 +4,13 @@
 #include <algorithm>
 #include <cmath>
 
+#include <QFont>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QSizePolicy>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QLoggingCategory>
 
 #include "deck/instruments/InstrumentRenderModel.hpp"
 #include "deck/instruments/CpuInstrumentLayout.hpp"
@@ -20,6 +22,11 @@ namespace darkspark::deck::instruments {
 using themes::LegacyTheme;
 
 namespace {
+
+// Diagnostic-only category for the GPU instrument. OFF by default; enable with
+// QT_LOGGING_RULES="darkspark.instrument.gpu=true". Latched to fire ONCE for the
+// first model receipt and ONCE for the first paint -- never per frame.
+Q_LOGGING_CATEGORY(lcGpuInstrument, "darkspark.instrument.gpu")
 
 /// GPU's milestone-1 accent: intentionally almost identical to CPU's cyan, with
 /// only a very subtle warm shift so the two instruments read as the same family
@@ -57,6 +64,18 @@ void GpuInstrument::applySizePolicyForMode() {
 }
 
 void GpuInstrument::setModel(const GpuInstrumentModel& model) {
+    if (!loggedFirstModel_) {
+        loggedFirstModel_ = true;
+        qCInfo(lcGpuInstrument)
+            << "GpuInstrument first model: visible=" << isVisible()
+            << "size=" << size()
+            << "utilAvailable="
+            << (model.utilizationAvailability != ValueAvailability::Absent)
+            << "util=" << model.utilizationPercent
+            << "tempAvailable="
+            << (model.temperatureAvailability != ValueAvailability::Absent)
+            << "temp=" << model.temperatureCelsius;
+    }
     target_ = model;
     if (displayed_.utilizationAvailability == ValueAvailability::Absent
         && target_.utilizationAvailability != ValueAvailability::Absent) {
@@ -68,6 +87,13 @@ void GpuInstrument::setModel(const GpuInstrumentModel& model) {
     }
     displayed_.utilizationAvailability = target_.utilizationAvailability;
     displayed_.temperatureAvailability = target_.temperatureAvailability;
+
+    // VRAM is a slow-moving text caption, not an animated gauge: pass it
+    // straight through (no interpolation) so the third line reflects the latest
+    // reading immediately.
+    displayed_.vramUsedBytes = target_.vramUsedBytes;
+    displayed_.vramTotalBytes = target_.vramTotalBytes;
+    displayed_.vramAvailability = target_.vramAvailability;
 
     if (interpolationSettled()) {
         displayed_.utilizationPercent = target_.utilizationPercent;
@@ -123,6 +149,16 @@ QSize GpuInstrument::sizeHint() const {
 QSize GpuInstrument::minimumSizeHint() const { return QSize(160, 160); }
 
 void GpuInstrument::paintEvent(QPaintEvent* /*event*/) {
+    if (!loggedFirstPaint_) {
+        loggedFirstPaint_ = true;
+        qCInfo(lcGpuInstrument)
+            << "GpuInstrument first paint: visible=" << isVisible()
+            << "size=" << size()
+            << "utilAvailable="
+            << (displayed_.utilizationAvailability != ValueAvailability::Absent)
+            << "tempAvailable="
+            << (displayed_.temperatureAvailability != ValueAvailability::Absent);
+    }
     QPainter painter(this);
 
     // GPU keeps its own model and interpolation; the DarkSpark visual language
@@ -161,6 +197,44 @@ void GpuInstrument::paintEvent(QPaintEvent* /*event*/) {
     rm.glowStrength = 1.0;
 
     InstrumentRenderer::paint(painter, rect(), rm);
+
+    // Third caption line: "VRAM x.x / y.y GB", drawn directly here (NOT via the
+    // shared InstrumentRenderer, which is frozen and has only primary/secondary
+    // slots). Temperature stays the secondary line; this sits below it. When the
+    // reading is unavailable it degrades to "VRAM -- / -- GB" without touching
+    // utilization or temperature.
+    {
+        const double side =
+            std::min(rect().width(), rect().height());
+        constexpr double kBytesPerGiB = 1024.0 * 1024.0 * 1024.0;
+        QString vramText;
+        if (displayed_.vramAvailability != ValueAvailability::Absent
+            && displayed_.vramTotalBytes > 0.0) {
+            const double usedGb = displayed_.vramUsedBytes / kBytesPerGiB;
+            const double totalGb = displayed_.vramTotalBytes / kBytesPerGiB;
+            vramText = QStringLiteral("VRAM %1 / %2 GB")
+                           .arg(usedGb, 0, 'f', 1)
+                           .arg(totalGb, 0, 'f', 1);
+        } else {
+            vramText = QStringLiteral("VRAM -- / -- GB");
+        }
+
+        QFont f(font());
+        const int vramPx = (mode_ == InstrumentSizeMode::Small) ? 11 : 13;
+        f.setPixelSize(vramPx);
+        f.setWeight(QFont::Medium);
+        painter.setFont(f);
+        painter.setPen(LegacyTheme::textSecondary());
+        // Sit just below the secondary (temperature) line. secondaryY is at
+        // centerY + side*0.16 (Small) / *0.135 (Large); place this a line under.
+        const double centerY = rect().y() + rect().height() / 2.0;
+        const double thirdY =
+            centerY
+            + side * ((mode_ == InstrumentSizeMode::Small) ? 0.245 : 0.205);
+        const QRectF box(rect().x(), thirdY - vramPx, rect().width(),
+                         vramPx * 1.8);
+        painter.drawText(box, Qt::AlignHCenter | Qt::AlignVCenter, vramText);
+    }
 }
 
 

@@ -1,0 +1,566 @@
+darkspark.telemetry.cpu.thermal: [Sensor Discovery] CPU CCD1 temperature found
+darkspark.telemetry.cpu.thermal: [Sensor Discovery] CPU Package temperature found
+darkspark.application: Telemetry started; providers: 3
+darkspark.application: [CPU Thermal] ccd1 discovered, awaiting first reading
+darkspark.application: [CPU Thermal] package discovered, awaiting first reading
+darkspark.anim: AnimationClock constructed; active clock instances = 1 (Command Deck expects exactly 1)
+darkspark.telemetry.cpu.thermal: [Sensor Discovery] CPU CCD1 temperature found
+darkspark.telemetry.cpu.thermal: [Sensor Discovery] CPU Package temperature found
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu: gpu utilization service start: poll= 1000 ms readerBound= true
+darkspark.wiring.gpu: gpu provider started and primed 1 sample(s)
+darkspark.wiring.gpu: gpu sample metric= 3 state= 0 -> model updated
+darkspark.instrument.gpu: GpuInstrument first model: visible= false size= QSize(100, 30) utilAvailable= false util= 0 tempAvailable= false temp= 0
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu thermal service start: poll= 1000 ms tempInput= "/sys/class/hwmon/hwmon2/temp2_input"
+darkspark.wiring.gpu: gpu provider started and primed 1 sample(s)
+darkspark.wiring.gpu: gpu sample metric= 4 state= 0 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.cooling: Cooling Discovery
+darkspark.cooling: Provider: hwmon
+darkspark.cooling:   ✓ GPU Fan (amdgpu:fan1)
+darkspark.cooling: Selected:
+darkspark.cooling:   Primary:   GPU Fan
+darkspark.cooling:   Secondary: none
+darkspark.cooling: Reason:
+darkspark.cooling:   Highest-priority RPM source selected as primary; coolant temperature (or a distinct second fan) as secondary.
+darkspark.storage: Storage Discovery:
+darkspark.storage: Provider: filesystem
+darkspark.storage:   ✓ fs:/
+darkspark.storage:   ✓ fs:/
+darkspark.storage:   ✓ fs:/
+darkspark.storage:   ✓ fs:/dev
+darkspark.storage:   ✓ fs:/dev
+darkspark.storage:   ✓ fs:/dev
+darkspark.storage:   ✓ fs:/dev/shm
+darkspark.storage:   ✓ fs:/dev/shm
+darkspark.storage:   ✓ fs:/dev/shm
+darkspark.storage:   ✓ fs:/sys/firmware/efi/efivars
+darkspark.storage:   ✓ fs:/sys/firmware/efi/efivars
+darkspark.storage:   ✓ fs:/sys/firmware/efi/efivars
+darkspark.storage:   ✓ fs:/run
+darkspark.storage:   ✓ fs:/run
+darkspark.storage:   ✓ fs:/run
+darkspark.storage:   ✓ fs:/run/credentials/systemd-journald.service
+darkspark.storage:   ✓ fs:/run/credentials/systemd-journald.service
+darkspark.storage:   ✓ fs:/run/credentials/systemd-journald.service
+darkspark.storage:   ✓ fs:/run/credentials/systemd-resolved.service
+darkspark.storage:   ✓ fs:/run/credentials/systemd-resolved.service
+darkspark.storage:   ✓ fs:/run/credentials/systemd-resolved.service
+darkspark.storage:   ✓ fs:/tmp
+darkspark.storage:   ✓ fs:/tmp
+darkspark.storage:   ✓ fs:/tmp
+darkspark.storage:   ✓ fs:/home
+darkspark.storage:   ✓ fs:/home
+darkspark.storage:   ✓ fs:/home
+darkspark.storage:   ✓ fs:/boot
+darkspark.storage:   ✓ fs:/boot
+darkspark.storage:   ✓ fs:/boot
+darkspark.storage:   ✓ fs:/mnt/games2
+darkspark.storage:   ✓ fs:/mnt/games2
+darkspark.storage:   ✓ fs:/mnt/games2
+darkspark.storage:   ✓ fs:/mnt/games1
+darkspark.storage:   ✓ fs:/mnt/games1
+darkspark.storage:   ✓ fs:/mnt/games1
+darkspark.storage:   ✓ fs:/boot/efi
+darkspark.storage:   ✓ fs:/boot/efi
+darkspark.storage:   ✓ fs:/boot/efi
+darkspark.storage:   ✓ fs:/run/user/1000
+darkspark.storage:   ✓ fs:/run/user/1000
+darkspark.storage:   ✓ fs:/run/user/1000
+darkspark.storage: Provider: nvme
+darkspark.storage:   ✓ nvme:nvme1n1
+darkspark.storage:   ✓ nvme:nvme0n1
+darkspark.storage: Provider: diskstats
+darkspark.storage:   ✓ disk:sda
+darkspark.storage:   ✓ disk:sda
+darkspark.storage:   ✓ disk:sdb
+darkspark.storage:   ✓ disk:sdb
+darkspark.storage:   ✓ disk:sdc
+darkspark.storage:   ✓ disk:sdc
+darkspark.storage:   ✓ disk:nvme1n1
+darkspark.storage:   ✓ disk:nvme1n1
+darkspark.storage:   ✓ disk:nvme0n1
+darkspark.storage:   ✓ disk:nvme0n1
+darkspark.storage: Selected filesystem: /
+darkspark.storage: Backing device: /dev/nvme0n1p3
+darkspark.storage: Filesystem type: btrfs
+darkspark.storage: Capacity: 928.9 GB
+darkspark.storage: Selected NVMe hwmon: hwmon1
+darkspark.storage: DiskStats device: nvme0n1
+darkspark.network: Network Discovery:
+darkspark.network: Provider: interface
+darkspark.network:   ✓ lo (loopback, up)
+darkspark.network:   ✓ eno1 (physical, up, default-route)
+darkspark.network:   ✓ wlp11s0 (physical, up)
+darkspark.network:   ✓ wg0 (virtual, down)
+darkspark.network: Selected interface: eno1
+darkspark.network: Default-route interface: eno1
+darkspark.network: Link state: up
+darkspark.network: Reason:
+darkspark.network:   override>default-route>active-physical>first-non-loopback.
+darkspark.application: Started in Command Deck mode (live CPU + GPU + Memory + Cooling + Storage + Network telemetry)
+darkspark.instrument.gpu: GpuInstrument first paint: visible= true size= QSize(220, 220) utilAvailable= false tempAvailable= false
+darkspark.telemetry.memory: memory telemetry state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] Package state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 79°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] Package state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 79°C
+darkspark.telemetry.gpu: gpu telemetry state -> 1
+darkspark.telemetry.gpu: gpu utilization = 85 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu thermal state -> 1
+darkspark.telemetry.gpu.thermal: gpu temperature = 75 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.memory: memory telemetry state -> 1
+darkspark.telemetry.cpu: cpu telemetry state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 77°C, Package 78°C
+darkspark.telemetry.cpu: cpu telemetry state -> 1
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 77°C, Package 78°C
+darkspark.telemetry.gpu: gpu utilization = 94 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 65 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 77°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 77°C
+darkspark.telemetry.gpu: gpu utilization = 98 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 79°C, Package 77°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 79°C, Package 77°C
+darkspark.telemetry.gpu: gpu utilization = 99 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 79 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 81°C, Package 79°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 81°C, Package 79°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 80 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 77°C, Package 80°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 77°C, Package 80°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 76°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 76°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 89 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 77 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 78°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 78°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 79 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 85 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 77 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 86 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 80°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 80°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 77 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 78°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 78°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 82°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 75°C, Package 82°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 82°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 82°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 86 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 77 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 76°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 76°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 78 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 89 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 79 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 80 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 82°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 73°C, Package 82°C
+darkspark.telemetry.gpu: gpu utilization = 89 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 71°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 70°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 79 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 89 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 80 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 87 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.telemetry.gpu.thermal: gpu temperature = 79 C
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 72°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 88 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.cpu.thermal: [CPU Thermal] CCD1 74°C, Package 81°C
+darkspark.telemetry.gpu: gpu utilization = 89 %
+darkspark.wiring.gpu: gpu sample metric= 3 state= 1 -> model updated
+darkspark.selection.gpu: GPU discovery: 2 candidate(s), 2 hwmon(s); override= "<none>"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card0" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0" pcieDepth= 2 busy= "/sys/class/drm/card0/device/gpu_busy_percent"
+darkspark.selection.gpu:   candidate: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" pcieDepth= 4 busy= "/sys/class/drm/card1/device/gpu_busy_percent"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon2" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+darkspark.selection.gpu:   hwmon: dir= "/sys/class/hwmon/hwmon3" resolved= "/sys/devices/pci0000:00/0000:00:08.1/0000:0e:00.0"
+darkspark.selection.gpu: GPU selected: drm= "/sys/class/drm/card1" resolved= "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0" busy= "/sys/class/drm/card1/device/gpu_busy_percent" hwmon= "/sys/class/hwmon/hwmon2" hasHwmon= true
+darkspark.wiring.gpu: gpu sample metric= 4 state= 1 -> model updated
