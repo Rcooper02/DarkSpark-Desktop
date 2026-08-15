@@ -9,10 +9,13 @@
 #include <cstdio>
 
 #include <QApplication>
+#include <QEvent>
+#include <QKeyEvent>
 #include <QMouseEvent>
 
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
+#include "deck/instruments/MemoryInstrument.hpp"
 #include "deck/layout/DeckLayout.hpp"
 #include "deck/layout/DeckLayoutEdits.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
@@ -50,20 +53,21 @@ bool same(const Pointers& a, const Pointers& b) {
            && a.network == b.network;
 }
 
-// Select a widget the way production does: synthesize a left-click at the
-// center of its instrument, in page coordinates. Returns whether selection took.
+// Select a widget the way production does: deliver a real left-press TO THE
+// INSTRUMENT CHILD widget. The instrument would normally consume it; the page's
+// installed event filter intercepts it while editing and performs selection.
+// This exercises the actual runtime event route (not a synthetic press sent to
+// the parent, which was the flaw the runtime bug exposed).
 bool clickSelect(CommandDeckPage& page, QWidget* instrument) {
-    page.show();  // ensure geometry is realized so mapTo/positions are valid
+    page.show();  // realize geometry so the widget hierarchy is live
     QApplication::processEvents();
-    const QPoint center =
-        instrument->mapTo(&page, QPoint(instrument->width() / 2,
-                                        instrument->height() / 2));
-    QMouseEvent press(QEvent::MouseButtonPress, center,
-                      instrument->mapToGlobal(QPoint(instrument->width() / 2,
-                                                     instrument->height() / 2)),
-                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-    QApplication::sendEvent(&page, &press);
-    return true;
+    const QPoint local(instrument->width() / 2, instrument->height() / 2);
+    QMouseEvent press(QEvent::MouseButtonPress, local,
+                      instrument->mapToGlobal(local), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    // Send to the INSTRUMENT, not the page: the page's event filter must catch
+    // it. Returns whether the event was accepted (consumed by the filter).
+    return QApplication::sendEvent(instrument, &press);
 }
 
 void test_pointer_identity_across_move() {
@@ -82,6 +86,44 @@ void test_pointer_identity_across_move() {
     CHECK(page.gpuInstrument() == gpu);       // exact same GPU pointer
     // Telemetry-facing accessor still resolves to the live, shown widget.
     CHECK(gpu->isVisible());
+}
+
+void test_arrow_key_moves_after_child_click() {
+    CommandDeckPage page(defaultCommandDeckLayout());
+    GpuInstrument* gpu = page.gpuInstrument();
+    CHECK(gpu != nullptr);
+    void* gpuPtr = gpu;
+
+    page.beginEdit();
+    // Free the cell to GPU's right (Memory sits at secondary (0,1)) so a Right
+    // arrow has a valid destination and its effect is observable.
+    clickSelect(page, page.memoryInstrument());
+    CHECK(page.selectedWidget() == WidgetId::Memory);
+    CHECK(page.toggleSelectedEnabled());          // disable Memory -> (0,1) free
+
+    // Real route: press on the CHILD instrument; the filter selects GPU and
+    // returns focus to the page.
+    clickSelect(page, gpu);
+    CHECK(page.selectedWidget() == WidgetId::Gpu); // selected via event filter
+
+    // A Right arrow delivered to the page must reach keyPressEvent and move the
+    // selection from (0,0) to the now-free (0,1).
+    QKeyEvent right(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier);
+    QApplication::sendEvent(&page, &right);
+    CHECK(page.gpuInstrument() == gpuPtr);         // pointer identity intact
+    CHECK(page.selectedWidget() == WidgetId::Gpu);
+    CHECK(page.moveSelection(DeckRegion::Secondary, 0, 1));  // idempotent -> at (0,1)
+    CHECK(page.gpuInstrument() == gpuPtr);
+}
+
+void test_filter_inactive_when_not_editing() {
+    CommandDeckPage page(defaultCommandDeckLayout());
+    GpuInstrument* gpu = page.gpuInstrument();
+    // Not editing: a press on the instrument must NOT select anything (filter
+    // passes it through untouched, preserving normal instrument behavior).
+    clickSelect(page, gpu);
+    CHECK(page.selectedWidget() == WidgetId::Unknown);
+    CHECK(!page.isEditing());
 }
 
 void test_pointer_identity_across_disable_reenable() {
@@ -165,6 +207,8 @@ void test_no_commit_when_not_editing() {
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     test_pointer_identity_across_move();
+    test_arrow_key_moves_after_child_click();
+    test_filter_inactive_when_not_editing();
     test_pointer_identity_across_disable_reenable();
     test_pointer_identity_across_cancel_roundtrip();
     test_cancel_restores_layout_exactly();

@@ -4,15 +4,19 @@
 
 #include <QHash>
 #include <QList>
+#include <QRect>
 #include <QWidget>
 
 #include "deck/layout/DeckLayout.hpp"
 
 class QGridLayout;
+class QVBoxLayout;
 class QPushButton;
 class QPaintEvent;
 class QMouseEvent;
 class QKeyEvent;
+class QResizeEvent;
+class QPainter;
 
 namespace darkspark::deck::instruments {
 class CpuInstrument;
@@ -150,6 +154,11 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    /// While editing, intercepts left-press on a registered instrument child so
+    /// the page can select it (children otherwise consume their own presses and
+    /// the parent's mousePressEvent never fires). Off when not editing.
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     QWidget* buildStatusRegion();
@@ -177,8 +186,39 @@ private:
     /// same instances instead of asking the factory for new ones.
     void registerInstrument(layout::WidgetId id, QWidget* widget);
 
+    /// Set the current selection to `id`, return keyboard focus to the page (so
+    /// arrow keys work immediately), and repaint the selection outline. Shared
+    /// by the event filter (clicks on instrument children) and mousePressEvent
+    /// (clicks on the page's own surface).
+    void selectWidget(layout::WidgetId id);
+
     /// Build/refresh the EDIT / SAVE / CANCEL controls for the current mode.
     void updateEditControls();
+
+    /// Reposition the selection overlay over the currently selected instrument
+    /// (page coords) and raise/show it; hide it when not editing, nothing is
+    /// selected, or the selected instrument is hidden.
+    void updateSelectionOverlay();
+
+    /// Expand gridHost to fill the Secondary region (editing) so every cell --
+    /// including the empty (1,2) -- has real, stable geometry; or restore the
+    /// exact normal-mode sizing/alignment (not editing).
+    void setEditGridExpanded(bool expanded);
+
+    /// Page-space rectangle of Secondary grid cell (row, column): single source
+    /// of truth shared by paintEditGrid (drawing) and gridCellAt (hit-testing).
+    [[nodiscard]] QRect cellRectInPage(int row, int column) const;
+
+    /// Hit-test a page-coordinate point against the Secondary grid. True with
+    /// row/column filled when inside a cell; false when outside the grid.
+    /// occupantOut receives the WidgetId occupying that cell, or Unknown.
+    [[nodiscard]] bool gridCellAt(const QPoint& pagePos, int& rowOut,
+                                  int& columnOut,
+                                  layout::WidgetId& occupantOut) const;
+
+    /// Draw the Secondary grid cells while editing so empty cells are visible,
+    /// clickable move targets. Page/edit layer only; never instrument artwork.
+    void paintEditGrid(QPainter& painter) const;
 
     layout::DeckLayout layout_;
 
@@ -197,7 +237,13 @@ private:
 
     // Region layouts kept so applyLayout can detach/re-add widgets by cell.
     QGridLayout* secondaryGrid_ = nullptr;
+    QWidget* gridHost_ = nullptr;
+    QVBoxLayout* secondaryOuter_ = nullptr;  // owns gridHost_'s placement
     QWidget* primaryHost_ = nullptr;
+
+    // Page-owned selection overlay, raised above instruments so the selection
+    // border is visible. Created once; repositioned per selection.
+    class SelectionOverlay* selectionOverlay_ = nullptr;
 
     // Edit-mode state.
     bool editing_ = false;

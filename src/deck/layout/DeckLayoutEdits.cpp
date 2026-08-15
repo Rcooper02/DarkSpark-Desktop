@@ -30,6 +30,13 @@ bool canPlace(const DeckLayout& layout, WidgetId id, DeckRegion region, int row,
     if (existing == nullptr) {
         return false;
     }
+    // Batch 4 editing is region-local. Primary instruments must remain in the
+    // Primary region and Secondary instruments must remain in Secondary. This
+    // prevents a Large primary instrument from being constrained into a small
+    // secondary cell and keeps the current edit surface reversible.
+    if (region != existing->region) {
+        return false;
+    }
     // Test on a copy: move the widget's placement and check whole-layout
     // validity. Because we edit the widget's own entry (not add a second), there
     // is no self-overlap; isValidLayout catches overlaps with OTHER enabled

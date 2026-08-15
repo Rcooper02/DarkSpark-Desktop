@@ -357,6 +357,8 @@ void CommandDeckPage::beginEdit() {
     updateEditControls();
     updateSelectionOverlay();
     update();
+    qCDebug(lcEdit) << "ENTER edit mode; instruments registered ="
+                    << instrumentById_.size();
 }
 
 bool CommandDeckPage::saveEdits() {
@@ -374,6 +376,7 @@ bool CommandDeckPage::saveEdits() {
     updateEditControls();
     updateSelectionOverlay();
     update();
+    qCDebug(lcEdit) << "EXIT edit mode (SAVE); committing layout";
     emit layoutCommitted(layout_);  // composition root persists it
     return true;
 }
@@ -391,19 +394,34 @@ void CommandDeckPage::cancelEdits() {
     updateEditControls();
     updateSelectionOverlay();
     update();
+    qCDebug(lcEdit) << "EXIT edit mode (CANCEL); restored pre-edit layout";
 }
 
 bool CommandDeckPage::moveSelection(layout::DeckRegion region, int row,
                                     int column) {
     if (!editing_ || selected_ == layout::WidgetId::Unknown) {
+        qCDebug(lcEdit) << "moveSelection ignored: editing=" << editing_
+                        << "selected=" << widgetIdName(selected_);
         return false;
     }
-
+    // Diagnostic: source cell, requested destination, and both gate results.
+    const layout::DeckWidgetPlacement* src =
+        layout::findPlacement(workingLayout_, selected_);
+    const int srcRegion = src != nullptr ? static_cast<int>(src->region) : -1;
+    const int srcRow = src != nullptr ? src->row : -1;
+    const int srcCol = src != nullptr ? src->column : -1;
+    const bool can =
+        layout::canPlace(workingLayout_, selected_, region, row, column);
+    qCDebug(lcEdit) << "move attempt widget=" << widgetIdName(selected_)
+                    << "from region/row/col=" << srcRegion << srcRow << srcCol
+                    << "to region/row/col=" << static_cast<int>(region) << row
+                    << column << "canPlace=" << can;
     if (!layout::moveWidget(workingLayout_, selected_, region, row, column)) {
-        return false;
+        qCDebug(lcEdit) << "  moveWidget REJECTED";
+        return false;  // invalid/overlapping: rejected, working copy unchanged
     }
-
-    applyLayout(workingLayout_);
+    qCDebug(lcEdit) << "  moveWidget OK; re-applying layout";
+    applyLayout(workingLayout_);  // live preview, still not persisted
     return true;
 }
 
@@ -442,6 +460,10 @@ bool CommandDeckPage::eventFilter(QObject* watched, QEvent* event) {
         auto* me = static_cast<QMouseEvent*>(event);
         // Diagnostic: record every press the filter sees, the watched object's
         // class and name, and whether it resolves to a registered instrument.
+        const char* watchedClass =
+            watched->metaObject() != nullptr
+                ? watched->metaObject()->className()
+                : "<none>";
         layout::WidgetId mapped = layout::WidgetId::Unknown;
         bool isRegistered = false;
         if (me->button() == Qt::LeftButton) {
@@ -459,6 +481,11 @@ bool CommandDeckPage::eventFilter(QObject* watched, QEvent* event) {
                 }
             }
         }
+        qCDebug(lcEdit) << "eventFilter MousePress watched class=" << watchedClass
+                        << "name=" << watched->objectName()
+                        << "button=" << static_cast<int>(me->button())
+                        << "registered=" << isRegistered
+                        << "-> WidgetId=" << widgetIdName(mapped);
         if (isRegistered && mapped != layout::WidgetId::Unknown) {
             selectWidget(mapped);
             return true;  // consume: don't let the instrument react
@@ -474,6 +501,8 @@ void CommandDeckPage::selectWidget(layout::WidgetId id) {
     setFocus(Qt::MouseFocusReason);
     updateSelectionOverlay();
     update();  // repaint the edit grid
+    qCDebug(lcEdit) << "selected_ changed ->" << widgetIdName(id)
+                    << "; page hasFocus =" << hasFocus();
 }
 
 void CommandDeckPage::paintEvent(QPaintEvent* event) {
@@ -508,6 +537,9 @@ void CommandDeckPage::mousePressEvent(QMouseEvent* event) {
     int col = -1;
     layout::WidgetId occupant = layout::WidgetId::Unknown;
     const bool inGrid = gridCellAt(pagePos, row, col, occupant);
+    qCDebug(lcEdit) << "mousePressEvent PAGE surface at" << pagePos
+                    << "inGrid=" << inGrid << "row=" << row << "col=" << col
+                    << "occupant=" << widgetIdName(occupant);
 
     if (!inGrid) {
         // Outside the grid entirely: clear selection (clicking dead space).
@@ -519,14 +551,20 @@ void CommandDeckPage::mousePressEvent(QMouseEvent* event) {
 
     if (occupant != layout::WidgetId::Unknown) {
         // Occupied cell: select that widget instead of overlapping it.
+        qCDebug(lcEdit) << "  grid click -> occupied, selecting"
+                        << widgetIdName(occupant);
         selectWidget(occupant);
         return;
     }
 
     // Empty cell: move the current selection here, via the existing pipeline.
     if (selected_ == layout::WidgetId::Unknown) {
+        qCDebug(lcEdit) << "  grid click -> empty, but nothing selected";
         return;
     }
+    qCDebug(lcEdit) << "  grid click -> empty, moving"
+                    << widgetIdName(selected_) << "to row=" << row
+                    << "col=" << col;
     moveSelection(layout::DeckRegion::Secondary, row, col);
     updateSelectionOverlay();
 }
@@ -536,6 +574,8 @@ void CommandDeckPage::keyPressEvent(QKeyEvent* event) {
         QWidget::keyPressEvent(event);
         return;
     }
+    qCDebug(lcEdit) << "keyPressEvent key=" << event->key()
+                    << "selected_ =" << widgetIdName(selected_);
     // Keyboard supplements the buttons: arrows move the selection by one cell,
     // Space toggles enabled, Enter saves, Escape cancels.
     const layout::DeckWidgetPlacement* p =

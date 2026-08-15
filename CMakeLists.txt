@@ -85,6 +85,8 @@ qt_add_executable(darkspark-desktop
     src/deck/pages/DeckPage.cpp
     src/deck/pages/DeckPage.hpp
     src/deck/pages/CommandDeckPage.cpp
+    src/deck/pages/SelectionOverlay.cpp
+    src/deck/pages/SelectionOverlay.hpp
     src/deck/pages/CommandDeckPage.hpp
     src/deck/layout/DeckLayout.cpp
     src/deck/layout/DeckLayout.hpp
@@ -369,6 +371,7 @@ if(BUILD_TESTING)
     add_executable(darkspark-command-deck-page-edit-test
         tests/deck/pages/CommandDeckPageEditTest.cpp
         src/deck/pages/CommandDeckPage.cpp
+        src/deck/pages/SelectionOverlay.cpp
         src/deck/layout/DeckLayout.cpp
         src/deck/layout/DeckLayoutEdits.cpp
         src/deck/layout/InstrumentFactory.cpp

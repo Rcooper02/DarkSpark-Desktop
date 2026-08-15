@@ -52,6 +52,30 @@ void test_reject_negative() {
     CHECK(g != nullptr && g->row == 0 && g->column == 0);  // unchanged
 }
 
+void test_reject_cross_region_moves() {
+    DeckLayout L = defaultCommandDeckLayout();
+
+    const DeckWidgetPlacement* cpuBefore = findPlacement(L, WidgetId::Cpu);
+    CHECK(cpuBefore != nullptr);
+    CHECK(cpuBefore->region == DeckRegion::Primary);
+    CHECK(!canPlace(L, WidgetId::Cpu, DeckRegion::Secondary, 1, 2));
+    CHECK(!moveWidget(L, WidgetId::Cpu, DeckRegion::Secondary, 1, 2));
+    const DeckWidgetPlacement* cpuAfter = findPlacement(L, WidgetId::Cpu);
+    CHECK(cpuAfter != nullptr);
+    CHECK(cpuAfter->region == DeckRegion::Primary);
+    CHECK(cpuAfter->row == cpuBefore->row && cpuAfter->column == cpuBefore->column);
+
+    const DeckWidgetPlacement* gpuBefore = findPlacement(L, WidgetId::Gpu);
+    CHECK(gpuBefore != nullptr);
+    CHECK(gpuBefore->region == DeckRegion::Secondary);
+    CHECK(!canPlace(L, WidgetId::Gpu, DeckRegion::Primary, 0, 0));
+    CHECK(!moveWidget(L, WidgetId::Gpu, DeckRegion::Primary, 0, 0));
+    const DeckWidgetPlacement* gpuAfter = findPlacement(L, WidgetId::Gpu);
+    CHECK(gpuAfter != nullptr);
+    CHECK(gpuAfter->region == DeckRegion::Secondary);
+    CHECK(gpuAfter->row == gpuBefore->row && gpuAfter->column == gpuBefore->column);
+}
+
 void test_move_preserves_span_and_size() {
     DeckLayout L = defaultCommandDeckLayout();
     const DeckWidgetPlacement* before = findPlacement(L, WidgetId::Cpu);
@@ -105,6 +129,7 @@ int main() {
     test_move_to_valid_empty_cell();
     test_reject_overlap();
     test_reject_negative();
+    test_reject_cross_region_moves();
     test_move_preserves_span_and_size();
     test_disable_widget();
     test_reenable_widget();
