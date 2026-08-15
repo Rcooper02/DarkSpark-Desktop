@@ -41,14 +41,24 @@ bool sameAsDefault(const DeckLayout& l) {
 
 void writeFile(const QString& path, const QByteArray& bytes) {
     QFile f(path);
-    f.open(QIODevice::WriteOnly | QIODevice::Truncate);
-    f.write(bytes);
+
+    CHECK(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    if (!f.isOpen()) {
+        return;
+    }
+
+    CHECK(f.write(bytes) == static_cast<qint64>(bytes.size()));
     f.close();
 }
 
 QByteArray readFile(const QString& path) {
     QFile f(path);
-    f.open(QIODevice::ReadOnly);
+
+    CHECK(f.open(QIODevice::ReadOnly));
+    if (!f.isOpen()) {
+        return {};
+    }
+
     const QByteArray b = f.readAll();
     f.close();
     return b;
@@ -137,6 +147,17 @@ void test_save_then_load_round_trip() {
 
 // --- collection (v2) persistence + migration --------------------------------
 
+bool sameLayout(const DeckLayout& a, const DeckLayout& b) {
+    if (a.pageId != b.pageId) return false;
+    if (a.placements.size() != b.placements.size()) return false;
+
+    for (std::size_t i = 0; i < a.placements.size(); ++i) {
+        if (!(a.placements[i] == b.placements[i])) return false;
+    }
+
+    return true;
+}
+
 bool sameAsDefaultCollection(const DeckLayoutCollection& c) {
     const DeckLayoutCollection& d = defaultCommandDeckCollection();
     if (c.activePageId != d.activePageId) return false;
@@ -144,7 +165,7 @@ bool sameAsDefaultCollection(const DeckLayoutCollection& c) {
     for (std::size_t i = 0; i < d.pages.size(); ++i) {
         if (c.pages[i].pageId != d.pages[i].pageId) return false;
         if (c.pages[i].name != d.pages[i].name) return false;
-        if (!(c.pages[i].layout == d.pages[i].layout)) return false;
+        if (!sameLayout(c.pages[i].layout, d.pages[i].layout)) return false;
     }
     return true;
 }
@@ -239,7 +260,8 @@ void test_active_page_save_and_load() {
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("layout.json"));
     LayoutPersistenceService svc(path);
-    svc.loadCollectionOrDefault();       // writes default (active 0)
+    const DeckLayoutCollection initial = svc.loadCollectionOrDefault();
+    CHECK(initial.activePageId == 0);    // default is written with page 0 active
     CHECK(svc.saveActivePage(1));        // switch to page 1
     const DeckLayoutCollection reloaded = svc.loadCollectionOrDefault();
     CHECK(reloaded.activePageId == 1);   // restored on next load

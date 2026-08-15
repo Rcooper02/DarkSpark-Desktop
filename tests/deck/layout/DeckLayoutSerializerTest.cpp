@@ -150,6 +150,17 @@ void test_parsed_but_duplicate_and_overlap() {
 
 // --- v2 collection + migration ----------------------------------------------
 
+bool sameLayout(const DeckLayout& a, const DeckLayout& b) {
+    if (a.pageId != b.pageId) return false;
+    if (a.placements.size() != b.placements.size()) return false;
+
+    for (std::size_t i = 0; i < a.placements.size(); ++i) {
+        if (!(a.placements[i] == b.placements[i])) return false;
+    }
+
+    return true;
+}
+
 bool sameCollection(const DeckLayoutCollection& a,
                     const DeckLayoutCollection& b) {
     if (a.activePageId != b.activePageId) return false;
@@ -157,7 +168,7 @@ bool sameCollection(const DeckLayoutCollection& a,
     for (std::size_t i = 0; i < a.pages.size(); ++i) {
         if (a.pages[i].pageId != b.pages[i].pageId) return false;
         if (a.pages[i].name != b.pages[i].name) return false;
-        if (!(a.pages[i].layout == b.pages[i].layout)) return false;
+        if (!sameLayout(a.pages[i].layout, b.pages[i].layout)) return false;
     }
     return true;
 }

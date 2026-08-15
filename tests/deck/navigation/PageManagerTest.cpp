@@ -8,6 +8,8 @@
 #include <cstdio>
 
 #include <QApplication>
+#include <QEventLoop>
+#include <QTimer>
 #include <QWidget>
 
 #include "deck/navigation/PageManager.hpp"
@@ -21,6 +23,36 @@ void reportFail(const char* e, const char* f, int l) {
     ++g_failures;
 }
 #define CHECK(c) do { if (!(c)) reportFail(#c, __FILE__, __LINE__); } while (0)
+
+template <typename Action>
+bool navigateAndWait(PageManager& mgr, int expectedIndex, Action action) {
+    bool settled = false;
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+
+    QObject::connect(&mgr, &PageManager::activePageChanged, &loop,
+                     [&loop, &settled, expectedIndex](int index) {
+                         if (index == expectedIndex) {
+                             settled = true;
+                             loop.quit();
+                         }
+                     });
+
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    action();
+
+    // PageTransition may settle synchronously in its instant-fallback path.
+    if (settled || mgr.activeIndex() == expectedIndex) {
+        return mgr.activeIndex() == expectedIndex;
+    }
+
+    timeout.start(2000);
+    loop.exec();
+
+    return settled && mgr.activeIndex() == expectedIndex;
+}
 
 void test_add_plain_qwidgets() {
     PageManager mgr;
@@ -44,14 +76,10 @@ void test_navigation_among_three_pages() {
     mgr.addPage(new QWidget());
     mgr.addPage(new QWidget());
 
-    mgr.goToPage(2);
-    CHECK(mgr.activeIndex() == 2);
-    mgr.goToPage(1);
-    CHECK(mgr.activeIndex() == 1);
-    mgr.previousPage();
-    CHECK(mgr.activeIndex() == 0);
-    mgr.nextPage();
-    CHECK(mgr.activeIndex() == 1);
+    CHECK(navigateAndWait(mgr, 2, [&mgr]() { mgr.goToPage(2); }));
+    CHECK(navigateAndWait(mgr, 1, [&mgr]() { mgr.goToPage(1); }));
+    CHECK(navigateAndWait(mgr, 0, [&mgr]() { mgr.previousPage(); }));
+    CHECK(navigateAndWait(mgr, 1, [&mgr]() { mgr.nextPage(); }));
 
     // Out-of-range requests are ignored (no change, no crash).
     mgr.goToPage(99);
@@ -72,9 +100,7 @@ void test_active_page_changed_signal() {
                          lastIndex = index;
                          ++count;
                      });
-    mgr.goToPage(2);
-    // The transition may be animated; process events so it completes.
-    QCoreApplication::processEvents();
+    CHECK(navigateAndWait(mgr, 2, [&mgr]() { mgr.goToPage(2); }));
     CHECK(count >= 1);
     CHECK(lastIndex == 2);
 }
