@@ -3,12 +3,14 @@
 
 #include <string_view>
 #include <memory>
+#include <vector>
 
 #include "deck/DeckWindow.hpp"
 #include "deck/instruments/AnimationClock.hpp"
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/CpuInstrumentModelAdapter.hpp"
 #include "deck/instruments/InstrumentPreviewPage.hpp"
+#include "deck/instruments/InstrumentModelFanout.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
 #include "deck/instruments/GpuInstrumentModelAdapter.hpp"
 #include "services/GpuTelemetryService.hpp"
@@ -258,19 +260,62 @@ void Application::startCommandDeck() {
         layoutPersistence->loadCollectionOrDefault();
 
     // A PageManager hosts every page and owns navigation (swipe/keyboard) and
-    // the page indicator. Telemetry routing stays deliberately narrow: only the
-    // System page carries instruments, so we keep a direct pointer to it and
-    // wire telemetry to it exactly as before. Other pages are empty and receive
-    // no telemetry (their instrument accessors are null and are never touched).
+    // the page indicator. Each page owns its own instrument QWidget instances;
+    // Application collects every live instance and fans one subsystem model out
+    // to all matching views. System remains the only editable/persisted page in
+    // this batch, but telemetry is no longer tied to System-page pointers.
     auto* pageManager = new deck::navigation::PageManager(window.get());
     deck::pages::CommandDeckPage* systemPage = nullptr;
     int systemPageId = collection.activePageId;
     int activeIndex = 0;
+
+    // Every page owns its own instrument QWidget instances, but all instances
+    // of a subsystem are views of ONE telemetry/model stream. Collect the live
+    // views as pages are built so one adapter update can fan out to every page
+    // that contains that WidgetId. Empty pages simply contribute no targets.
+    std::vector<deck::instruments::CpuInstrument*> cpuTargets;
+    std::vector<deck::instruments::GpuInstrument*> gpuTargets;
+    std::vector<deck::instruments::MemoryInstrument*> memoryTargets;
+    std::vector<deck::instruments::CoolingInstrument*> coolingTargets;
+    std::vector<deck::instruments::StorageInstrument*> storageTargets;
+    std::vector<deck::instruments::NetworkInstrument*> networkTargets;
+
+    const auto collectPageTargets =
+        [&](deck::pages::CommandDeckPage* deckPage) {
+            if (deckPage == nullptr) {
+                return;
+            }
+            if (auto* instrument = deckPage->primaryInstrument();
+                instrument != nullptr) {
+                cpuTargets.push_back(instrument);
+            }
+            if (auto* instrument = deckPage->gpuInstrument();
+                instrument != nullptr) {
+                gpuTargets.push_back(instrument);
+            }
+            if (auto* instrument = deckPage->memoryInstrument();
+                instrument != nullptr) {
+                memoryTargets.push_back(instrument);
+            }
+            if (auto* instrument = deckPage->coolingInstrument();
+                instrument != nullptr) {
+                coolingTargets.push_back(instrument);
+            }
+            if (auto* instrument = deckPage->storageInstrument();
+                instrument != nullptr) {
+                storageTargets.push_back(instrument);
+            }
+            if (auto* instrument = deckPage->networkInstrument();
+                instrument != nullptr) {
+                networkTargets.push_back(instrument);
+            }
+        };
     for (int i = 0; i < static_cast<int>(collection.pages.size()); ++i) {
         const deck::layout::DeckPageDefinition& def = collection.pages[i];
         auto* deckPage =
             new deck::pages::CommandDeckPage(def.layout, pageManager);
         pageManager->addPage(deckPage);
+        collectPageTargets(deckPage);
         // The System page is the one that actually contains instruments (its
         // layout places CPU). Identify it by a placed CPU widget so telemetry
         // binds to the page that has the accessors.
@@ -299,15 +344,15 @@ void Application::startCommandDeck() {
             }
         });
 
-    // From here the System page plays the role the single page did before: all
-    // telemetry and the animation clock bind to `page`, which is the System
-    // page. If no page had instruments (should not happen with the compiled
-    // default), fall back to a standalone System page so wiring stays valid.
+    // System remains the Edit Mode persistence anchor. If no persisted page had
+    // a Primary instrument (should not happen with the compiled default), add a
+    // standalone System page and collect its instrument views too.
     deck::pages::CommandDeckPage* page = systemPage;
     if (page == nullptr) {
         page = new deck::pages::CommandDeckPage(
             deck::layout::defaultCommandDeckLayout(), window.get());
         outer->addWidget(page);
+        collectPageTargets(page);
     }
 
     // Edit Mode persistence seam: when the System page commits an edit (Save),
@@ -339,45 +384,50 @@ void Application::startCommandDeck() {
     }
 
     // One shared animation clock for the entire Command Deck (parented to the
-    // window). It replaces the six former per-instrument timers: every
-    // instrument is driven by this single clock, so there is exactly one
-    // animation QTimer for the deck. Each instrument subscribes/unsubscribes on
-    // show/hide, and the clock stops entirely when nothing needs animation.
+    // window). Every live instrument view on every page uses this same clock;
+    // hidden pages unsubscribe through their instruments' show/hide lifecycle,
+    // so there is still exactly one animation QTimer for the deck.
     auto* animationClock =
         new deck::instruments::AnimationClock(window.get());
-    page->primaryInstrument()->setAnimationClock(animationClock);
-    page->gpuInstrument()->setAnimationClock(animationClock);
-    page->memoryInstrument()->setAnimationClock(animationClock);
-    page->coolingInstrument()->setAnimationClock(animationClock);
-    page->storageInstrument()->setAnimationClock(animationClock);
-    page->networkInstrument()->setAnimationClock(animationClock);
+    for (auto* instrument : cpuTargets) {
+        instrument->setAnimationClock(animationClock);
+        instrument->setPersonality(
+            deck::instruments::InstrumentPersonality::core());
+    }
+    for (auto* instrument : gpuTargets) {
+        instrument->setAnimationClock(animationClock);
+    }
+    for (auto* instrument : memoryTargets) {
+        instrument->setAnimationClock(animationClock);
+    }
+    for (auto* instrument : coolingTargets) {
+        instrument->setAnimationClock(animationClock);
+    }
+    for (auto* instrument : storageTargets) {
+        instrument->setAnimationClock(animationClock);
+    }
+    for (auto* instrument : networkTargets) {
+        instrument->setAnimationClock(animationClock);
+    }
 
-    // CPU is the reference personality this milestone: "The Core". The other
-    // five instruments keep the neutral personality (byte-identical visuals).
-    page->primaryInstrument()->setPersonality(
-        deck::instruments::InstrumentPersonality::core());
+    // CPU is the reference personality this milestone: "The Core". Every CPU
+    // view gets that same identity; the other subsystem views stay neutral.
 
     connect(new QShortcut(QKeySequence(Qt::Key_Escape), window.get()),
             &QShortcut::activated, window.get(), &QWidget::close);
 
-    // Telemetry wiring lives HERE, in the composition root -- not in the page.
-    // The page composes instruments and regions and knows nothing about
-    // telemetry; Application owns the adapter and provider wiring and drives the
-    // page's primary instrument:
-    //
-    //     provider -> adapter -> page->primaryInstrument()->setModel()
-    //
-    // A future subsystem instrument would be bound the same way, so the page
-    // never becomes a telemetry coordinator. Providers are owned by the window,
-    // independent of the dashboard's providers_, so the Command Deck is
-    // self-contained. The adapter is a plain value type; a shared_ptr captured
-    // by the sample handler ties its lifetime to the connections (and window).
-    auto* primary = page->primaryInstrument();
+    // Telemetry wiring lives HERE, in the composition root -- not in pages.
+    // Each subsystem has one provider/adapter pipeline; when its model changes,
+    // fanOutInstrumentModel publishes that model to every live page view of that
+    // subsystem. Pages remain telemetry-independent and duplicate widgets do not
+    // duplicate providers. Providers are owned by the window; adapters are kept
+    // alive by the sample-handler connections.
     auto adapter =
         std::make_shared<deck::instruments::CpuInstrumentModelAdapter>();
-    auto applySample = [adapter, primary](const models::MetricSample& sample) {
+    auto applySample = [adapter, cpuTargets](const models::MetricSample& sample) {
         if (adapter->apply(sample)) {
-            primary->setModel(adapter->model());
+            deck::instruments::fanOutInstrumentModel(adapter->model(),
+                                                      cpuTargets);
         }
     };
 
@@ -397,16 +447,12 @@ void Application::startCommandDeck() {
         }
     }
 
-    // GPU wiring, the second live subsystem, bound exactly like CPU from the
-    // composition root: gpuProvider -> gpuAdapter -> page->gpuInstrument().
-    // GPU has its own providers, its own adapter, and its own instrument type;
-    // the page stays telemetry-independent. This is the reference pattern for
-    // every future subsystem.
-    auto* gpu = page->gpuInstrument();
+    // GPU wiring: one provider/adapter stream fans out to every GPU view across
+    // the Command Deck pages. The pages remain telemetry-independent.
     auto gpuAdapter =
         std::make_shared<deck::instruments::GpuInstrumentModelAdapter>();
     auto applyGpuSample =
-        [gpuAdapter, gpu](const models::MetricSample& sample) {
+        [gpuAdapter, gpuTargets](const models::MetricSample& sample) {
             const bool changed = gpuAdapter->apply(sample);
             // Diagnostic: a sample arrived; did it change the model? (Logged
             // only when it did, so a steady stream doesn't flood.)
@@ -415,7 +461,8 @@ void Application::startCommandDeck() {
                     << "gpu sample metric=" << static_cast<int>(sample.id())
                     << "state=" << static_cast<int>(sample.state())
                     << "-> model updated";
-                gpu->setModel(gpuAdapter->model());
+                deck::instruments::fanOutInstrumentModel(gpuAdapter->model(),
+                                                          gpuTargets);
             }
         };
 
@@ -437,18 +484,15 @@ void Application::startCommandDeck() {
         }
     }
 
-    // Memory wiring, the third live subsystem, bound with the same reference
-    // pattern: memoryProvider -> memoryAdapter -> page->memoryInstrument(). The
-    // single MemoryTelemetryService emits three joined samples (utilization plus
-    // used/total bytes); the adapter joins them into one model. The page stays
-    // telemetry-independent.
-    auto* memory = page->memoryInstrument();
+    // Memory wiring: one MemoryTelemetryService emits the joined samples and
+    // one adapter builds the model, which is then published to every Memory view.
     auto memoryAdapter =
         std::make_shared<deck::instruments::MemoryInstrumentModelAdapter>();
     auto applyMemorySample =
-        [memoryAdapter, memory](const models::MetricSample& sample) {
+        [memoryAdapter, memoryTargets](const models::MetricSample& sample) {
             if (memoryAdapter->apply(sample)) {
-                memory->setModel(memoryAdapter->model());
+                deck::instruments::fanOutInstrumentModel(memoryAdapter->model(),
+                                                          memoryTargets);
             }
         };
 
@@ -462,18 +506,15 @@ void Application::startCommandDeck() {
         applyMemorySample(sample);
     }
 
-    // Cooling wiring, the fourth live subsystem, bound with the same reference
-    // pattern: coolingProvider -> coolingAdapter -> page->coolingInstrument().
-    // The provider aggregates cooling sensor providers, selects roles, and emits
-    // role-based samples; the adapter joins them. The page stays
-    // telemetry-independent.
-    auto* cooling = page->coolingInstrument();
+    // Cooling wiring: the provider/adapter pair remains singular while its
+    // presentation model is published to every Cooling view.
     auto coolingAdapter =
         std::make_shared<deck::instruments::CoolingInstrumentModelAdapter>();
     auto applyCoolingSample =
-        [coolingAdapter, cooling](const models::MetricSample& sample) {
+        [coolingAdapter, coolingTargets](const models::MetricSample& sample) {
             if (coolingAdapter->apply(sample)) {
-                cooling->setModel(coolingAdapter->model());
+                deck::instruments::fanOutInstrumentModel(coolingAdapter->model(),
+                                                          coolingTargets);
             }
         };
 
@@ -487,18 +528,15 @@ void Application::startCommandDeck() {
         applyCoolingSample(sample);
     }
 
-    // Storage wiring, the fifth live subsystem: storageProvider -> storageAdapter
-    // -> page->storageInstrument(). The service aggregates filesystem/NVMe/
-    // diskstats providers, applies the selection policies, and emits six
-    // role-based samples; the adapter joins them (retaining temperature and
-    // throughput even though the V1 face shows only utilization + used/total).
-    auto* storage = page->storageInstrument();
+    // Storage wiring: one aggregate provider/adapter stream fans its joined
+    // presentation model out to every Storage view.
     auto storageAdapter =
         std::make_shared<deck::instruments::StorageInstrumentModelAdapter>();
     auto applyStorageSample =
-        [storageAdapter, storage](const models::MetricSample& sample) {
+        [storageAdapter, storageTargets](const models::MetricSample& sample) {
             if (storageAdapter->apply(sample)) {
-                storage->setModel(storageAdapter->model());
+                deck::instruments::fanOutInstrumentModel(storageAdapter->model(),
+                                                          storageTargets);
             }
         };
 
@@ -512,18 +550,13 @@ void Application::startCommandDeck() {
         applyStorageSample(sample);
     }
 
-    // Network wiring, the sixth live subsystem: networkProvider -> networkAdapter
-    // -> page->networkInstrument(). The service aggregates network interface
-    // providers, applies the deterministic active-interface selection policy, and
-    // emits five role-based samples; the adapter joins them (retaining cumulative
-    // bytes and link state even though the V1 face shows only download + upload).
-    // Retained interface identity is populated from the sample key ("net:<iface>")
-    // so the page needs no telemetry knowledge.
-    auto* network = page->networkInstrument();
+    // Network wiring: the service/adapter remain singular, interface identity
+    // is retained from the sample key, and the resulting model is published to
+    // every Network view.
     auto networkAdapter =
         std::make_shared<deck::instruments::NetworkInstrumentModelAdapter>();
     auto applyNetworkSample =
-        [networkAdapter, network](const models::MetricSample& sample) {
+        [networkAdapter, networkTargets](const models::MetricSample& sample) {
             if (networkAdapter->apply(sample)) {
                 auto model = networkAdapter->model();
                 // Populate the retained interface identity from the stable key
@@ -533,7 +566,7 @@ void Application::startCommandDeck() {
                 if (key.rfind(kPrefix, 0) == 0) {
                     model.interfaceName = key.substr(kPrefix.size());
                 }
-                network->setModel(model);
+                deck::instruments::fanOutInstrumentModel(model, networkTargets);
             }
         };
 

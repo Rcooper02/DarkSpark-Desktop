@@ -72,39 +72,35 @@ public:
 
     /// The live primary instrument (CPU). Exposed so the composition root can
     /// bind telemetry to it without the page knowing about telemetry types.
-    /// Never null after construction.
+    /// Returns nullptr when this page's resolved layout does not contain CPU.
     [[nodiscard]] instruments::CpuInstrument* primaryInstrument() const {
         return primaryInstrument_;
     }
 
     /// The live GPU instrument in the secondary region. Exposed for the same
     /// reason as the primary: the composition root binds GPU telemetry to it,
-    /// while the page itself stays free of telemetry types. Never null after
-    /// construction.
+    /// while the page itself stays free of telemetry types. Returns nullptr when
+    /// this page does not contain GPU.
     [[nodiscard]] instruments::GpuInstrument* gpuInstrument() const {
         return gpuInstrument_;
     }
 
-    /// The live Memory instrument. Composition creates it; Application binds it
-    /// to memory telemetry, so this page stays telemetry-independent.
+    /// The live Memory instrument, or nullptr when absent from this page.
     [[nodiscard]] instruments::MemoryInstrument* memoryInstrument() const {
         return memoryInstrument_;
     }
 
-    /// The live Cooling instrument. Composition creates it; Application binds it
-    /// to cooling telemetry, so this page stays telemetry-independent.
+    /// The live Cooling instrument, or nullptr when absent from this page.
     [[nodiscard]] instruments::CoolingInstrument* coolingInstrument() const {
         return coolingInstrument_;
     }
 
-    /// The live Storage instrument. Composition creates it; Application binds it
-    /// to storage telemetry, so this page stays telemetry-independent.
+    /// The live Storage instrument, or nullptr when absent from this page.
     [[nodiscard]] instruments::StorageInstrument* storageInstrument() const {
         return storageInstrument_;
     }
 
-    /// The live Network instrument. Composition creates it; Application binds it
-    /// to network telemetry, so this page stays telemetry-independent.
+    /// The live Network instrument, or nullptr when absent from this page.
     [[nodiscard]] instruments::NetworkInstrument* networkInstrument() const {
         return networkInstrument_;
     }

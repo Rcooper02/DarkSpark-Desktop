@@ -105,6 +105,7 @@ qt_add_executable(darkspark-desktop
     src/deck/cards/StatusIndicator.cpp
     src/deck/cards/StatusIndicator.hpp
     src/deck/instruments/InstrumentSizeMode.hpp
+    src/deck/instruments/InstrumentModelFanout.hpp
     src/deck/instruments/InstrumentState.hpp
     src/deck/instruments/CpuInstrumentModel.hpp
     src/deck/instruments/CpuInstrumentModelAdapter.cpp
@@ -362,6 +363,20 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-deck-layout-edits-test
         COMMAND darkspark-deck-layout-edits-test
+    )
+
+    # Instrument model fanout test: one model update reaches every live view of
+    # a subsystem; null targets are ignored. Pure C++ / Qt-free (own main()).
+    add_executable(darkspark-instrument-model-fanout-test
+        tests/deck/instruments/InstrumentModelFanoutTest.cpp
+    )
+    target_include_directories(darkspark-instrument-model-fanout-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-instrument-model-fanout-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-instrument-model-fanout-test
+        COMMAND darkspark-instrument-model-fanout-test
     )
 
     # CommandDeckPage edit test: Edit Mode on the real page -- pointer identity

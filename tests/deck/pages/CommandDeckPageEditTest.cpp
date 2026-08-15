@@ -7,6 +7,7 @@
 // invalid-edit-not-committed. Uses QApplication (widgets + event loop).
 
 #include <cstdio>
+#include <vector>
 
 #include <QApplication>
 #include <QEvent>
@@ -15,6 +16,7 @@
 
 #include "deck/instruments/CpuInstrument.hpp"
 #include "deck/instruments/GpuInstrument.hpp"
+#include "deck/instruments/InstrumentModelFanout.hpp"
 #include "deck/instruments/MemoryInstrument.hpp"
 #include "deck/layout/DeckLayout.hpp"
 #include "deck/layout/DeckLayoutEdits.hpp"
@@ -193,6 +195,45 @@ void test_save_emits_committed_and_is_valid() {
     CHECK(page.primaryInstrument() != nullptr);
 }
 
+
+void test_same_subsystem_can_live_on_multiple_pages() {
+    DeckLayout custom;
+    custom.pageId = 2;
+    custom.placements.push_back(DeckWidgetPlacement{
+        .id = WidgetId::Gpu,
+        .region = DeckRegion::Secondary,
+        .row = 0,
+        .column = 0,
+        .rowSpan = 1,
+        .columnSpan = 1,
+        .sizeMode = instruments::InstrumentSizeMode::Small,
+        .enabled = true,
+    });
+
+    CommandDeckPage system(defaultCommandDeckLayout());
+    CommandDeckPage customPage(custom);
+
+    GpuInstrument* systemGpu = system.gpuInstrument();
+    GpuInstrument* customGpu = customPage.gpuInstrument();
+    CHECK(systemGpu != nullptr);
+    CHECK(customGpu != nullptr);
+    CHECK(systemGpu != customGpu);  // each page owns its own QWidget view
+
+    instruments::GpuInstrumentModel model;
+    model.utilizationPercent = 63.0;
+    model.utilizationAvailability = instruments::ValueAvailability::Live;
+    model.temperatureCelsius = 71.0;
+    model.temperatureAvailability = instruments::ValueAvailability::Live;
+
+    const std::vector<GpuInstrument*> targets{systemGpu, customGpu};
+    instruments::fanOutInstrumentModel(model, targets);
+
+    CHECK(systemGpu->model().utilizationPercent == 63.0);
+    CHECK(customGpu->model().utilizationPercent == 63.0);
+    CHECK(systemGpu->model().temperatureCelsius == 71.0);
+    CHECK(customGpu->model().temperatureCelsius == 71.0);
+}
+
 void test_no_commit_when_not_editing() {
     CommandDeckPage page(defaultCommandDeckLayout());
     int committedCount = 0;
@@ -214,6 +255,7 @@ int main(int argc, char** argv) {
     test_cancel_restores_layout_exactly();
     test_invalid_move_rejected();
     test_save_emits_committed_and_is_valid();
+    test_same_subsystem_can_live_on_multiple_pages();
     test_no_commit_when_not_editing();
     if (g_failures == 0) {
         std::puts("All CommandDeckPage edit tests passed.");
