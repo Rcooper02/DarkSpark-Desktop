@@ -94,6 +94,8 @@ qt_add_executable(darkspark-desktop
     src/deck/layout/DeckLayoutSerializer.hpp
     src/deck/layout/DeckLayoutCollection.cpp
     src/deck/layout/DeckLayoutCollection.hpp
+    src/deck/layout/DeckLayoutEdits.cpp
+    src/deck/layout/DeckLayoutEdits.hpp
     src/deck/layout/LayoutPersistenceService.cpp
     src/deck/layout/LayoutPersistenceService.hpp
     src/deck/cards/DashboardCard.cpp
@@ -342,6 +344,54 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-deck-layout-collection-test
         COMMAND darkspark-deck-layout-collection-test
+    )
+
+    # DeckLayoutEdits test: pure-data edit ops (find/canPlace/move/enable),
+    # move preserves span+sizeMode, overlap/negative rejected. Qt-free; own main.
+    add_executable(darkspark-deck-layout-edits-test
+        tests/deck/layout/DeckLayoutEditsTest.cpp
+        src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutEdits.cpp
+    )
+    target_include_directories(darkspark-deck-layout-edits-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-deck-layout-edits-test PRIVATE
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-deck-layout-edits-test
+        COMMAND darkspark-deck-layout-edits-test
+    )
+
+    # CommandDeckPage edit test: Edit Mode on the real page -- pointer identity
+    # preserved across move/disable/enable/cancel, Cancel restores exactly, Save
+    # emits layoutCommitted with a valid layout, invalid edit not committed.
+    # Links Qt6::Widgets (QWidget + event loop); own main().
+    add_executable(darkspark-command-deck-page-edit-test
+        tests/deck/pages/CommandDeckPageEditTest.cpp
+        src/deck/pages/CommandDeckPage.cpp
+        src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutEdits.cpp
+        src/deck/layout/InstrumentFactory.cpp
+        src/deck/instruments/CpuInstrument.cpp
+        src/deck/instruments/CpuInstrumentLayout.cpp
+        src/deck/instruments/GpuInstrument.cpp
+        src/deck/instruments/MemoryInstrument.cpp
+        src/deck/instruments/CoolingInstrument.cpp
+        src/deck/instruments/StorageInstrument.cpp
+        src/deck/instruments/NetworkInstrument.cpp
+        src/deck/instruments/InstrumentRenderer.cpp
+        src/deck/instruments/PersonalityMapping.cpp
+        src/deck/instruments/AnimationClock.cpp
+        src/themes/LegacyTheme.cpp
+    )
+    target_include_directories(darkspark-command-deck-page-edit-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-command-deck-page-edit-test PRIVATE
+        Qt6::Widgets
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-command-deck-page-edit-test
+        COMMAND darkspark-command-deck-page-edit-test
     )
 
     # PageManager test: page-type-agnostic hosting (addPage(QWidget*)),

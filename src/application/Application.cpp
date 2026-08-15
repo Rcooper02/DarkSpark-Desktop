@@ -264,6 +264,7 @@ void Application::startCommandDeck() {
     // no telemetry (their instrument accessors are null and are never touched).
     auto* pageManager = new deck::navigation::PageManager(window.get());
     deck::pages::CommandDeckPage* systemPage = nullptr;
+    int systemPageId = collection.activePageId;
     int activeIndex = 0;
     for (int i = 0; i < static_cast<int>(collection.pages.size()); ++i) {
         const deck::layout::DeckPageDefinition& def = collection.pages[i];
@@ -276,6 +277,7 @@ void Application::startCommandDeck() {
         if (systemPage == nullptr
             && deckPage->primaryInstrument() != nullptr) {
             systemPage = deckPage;
+            systemPageId = def.pageId;
         }
         if (def.pageId == collection.activePageId) {
             activeIndex = i;
@@ -306,6 +308,34 @@ void Application::startCommandDeck() {
         page = new deck::pages::CommandDeckPage(
             deck::layout::defaultCommandDeckLayout(), window.get());
         outer->addWidget(page);
+    }
+
+    // Edit Mode persistence seam: when the System page commits an edit (Save),
+    // update ONLY that page's layout in the persisted collection and write it.
+    // The page emits its new layout and stays unaware of collections/files; the
+    // composition root -- which already owns the collection, the service, and
+    // each page's id -- does the collection update and save. activePageId is
+    // untouched. Cancel emits nothing, so this never fires and nothing is
+    // written. Persistence happens on Save only, never on individual moves.
+    {
+        QObject::connect(
+            page, &deck::pages::CommandDeckPage::layoutCommitted, page,
+            [layoutPersistence, systemPageId](
+                const deck::layout::DeckLayout& edited) {
+                deck::layout::DeckLayoutCollection current =
+                    layoutPersistence->loadCollectionOrDefault();
+                bool updated = false;
+                for (deck::layout::DeckPageDefinition& def : current.pages) {
+                    if (def.pageId == systemPageId) {
+                        def.layout = edited;
+                        updated = true;
+                        break;
+                    }
+                }
+                if (updated && deck::layout::isValidCollection(current)) {
+                    layoutPersistence->saveCollection(current);
+                }
+            });
     }
 
     // One shared animation clock for the entire Command Deck (parented to the

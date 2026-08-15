@@ -2,10 +2,17 @@
 #ifndef DARKSPARK_DECK_PAGES_COMMANDDECKPAGE_HPP
 #define DARKSPARK_DECK_PAGES_COMMANDDECKPAGE_HPP
 
+#include <QHash>
 #include <QList>
 #include <QWidget>
 
 #include "deck/layout/DeckLayout.hpp"
+
+class QGridLayout;
+class QPushButton;
+class QPaintEvent;
+class QMouseEvent;
+class QKeyEvent;
 
 namespace darkspark::deck::instruments {
 class CpuInstrument;
@@ -98,6 +105,52 @@ public:
         return networkInstrument_;
     }
 
+    // --- Edit Mode -----------------------------------------------------------
+    // Edit Mode lets the user rearrange THIS page's widgets on a working copy of
+    // the layout, then Save (persist) or Cancel (discard). Instruments are never
+    // created or destroyed here: applyLayout() re-places the SAME instances, so
+    // every telemetry pointer Application holds stays valid across edits. When
+    // editing is off, the page behaves exactly as before.
+
+    /// Whether Edit Mode is currently on.
+    [[nodiscard]] bool isEditing() const { return editing_; }
+
+    /// Enter Edit Mode: snapshot the current layout as the pre-edit baseline and
+    /// start a working copy. No-op if already editing.
+    void beginEdit();
+
+    /// Save: validate the working copy; on success apply it as the page's layout
+    /// and emit layoutCommitted() so the composition root can persist it, then
+    /// leave Edit Mode. On failure (invalid working copy) nothing is committed
+    /// and Edit Mode stays on. Returns whether the save committed.
+    bool saveEdits();
+
+    /// Cancel: discard the working copy, restore the exact pre-edit layout, and
+    /// leave Edit Mode. Emits nothing and never persists.
+    void cancelEdits();
+
+    /// Move the current selection to the given cell on the working copy, if
+    /// valid. No-op when not editing or nothing is selected. Returns success.
+    bool moveSelection(layout::DeckRegion region, int row, int column);
+
+    /// Toggle enabled state of the current selection on the working copy, if the
+    /// result stays valid. Returns success.
+    bool toggleSelectedEnabled();
+
+    /// The currently selected widget (Unknown when none / not editing).
+    [[nodiscard]] layout::WidgetId selectedWidget() const { return selected_; }
+
+signals:
+    /// Emitted on a successful Save with the page's new layout. The composition
+    /// root updates this page's entry in the persisted collection and writes it;
+    /// the page itself stays unaware of collections, files, or JSON.
+    void layoutCommitted(const layout::DeckLayout& committedLayout);
+
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     QWidget* buildStatusRegion();
     QWidget* buildNavigationRegion();
@@ -108,6 +161,25 @@ private:
     /// telemetry types. Called as the page builds each placement.
     void captureInstrument(layout::WidgetId id, QWidget* widget);
 
+    /// Re-place the EXISTING instrument instances according to `layout`, without
+    /// creating or destroying any instrument. Widgets absent from the layout (or
+    /// disabled) are hidden and detached from their region layout; present ones
+    /// are shown and (re)added at their cell. Pointer identity is preserved, so
+    /// telemetry bindings remain valid. Updates layout_ to match.
+    void applyLayout(const layout::DeckLayout& layout);
+
+    /// Look up the live widget for an id from the stable instrument map (built
+    /// once at construction). Returns nullptr for ids with no instrument.
+    [[nodiscard]] QWidget* widgetForId(layout::WidgetId id) const;
+
+    /// The build methods populate this once, mapping each placed WidgetId to its
+    /// (permanently owned) instrument widget, so applyLayout can re-place the
+    /// same instances instead of asking the factory for new ones.
+    void registerInstrument(layout::WidgetId id, QWidget* widget);
+
+    /// Build/refresh the EDIT / SAVE / CANCEL controls for the current mode.
+    void updateEditControls();
+
     layout::DeckLayout layout_;
 
     instruments::CpuInstrument* primaryInstrument_ = nullptr;
@@ -117,6 +189,26 @@ private:
     instruments::StorageInstrument* storageInstrument_ = nullptr;
     instruments::NetworkInstrument* networkInstrument_ = nullptr;
     QList<instruments::CpuInstrument*> shellInstruments_;
+
+    // Stable id -> instrument widget map, built once during construction. The
+    // page owns these instruments for its whole lifetime; applyLayout re-places
+    // these same instances, so pointers handed to Application never dangle.
+    QHash<int, QWidget*> instrumentById_;
+
+    // Region layouts kept so applyLayout can detach/re-add widgets by cell.
+    QGridLayout* secondaryGrid_ = nullptr;
+    QWidget* primaryHost_ = nullptr;
+
+    // Edit-mode state.
+    bool editing_ = false;
+    layout::DeckLayout preEditLayout_;   // exact snapshot for Cancel
+    layout::DeckLayout workingLayout_;    // mutated during editing
+    layout::WidgetId selected_ = layout::WidgetId::Unknown;
+
+    // EDIT / SAVE / CANCEL controls, hosted in the Navigation region.
+    QPushButton* editButton_ = nullptr;
+    QPushButton* saveButton_ = nullptr;
+    QPushButton* cancelButton_ = nullptr;
 };
 
 }  // namespace darkspark::deck::pages
