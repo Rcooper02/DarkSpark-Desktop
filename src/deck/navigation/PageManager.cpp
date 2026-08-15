@@ -3,7 +3,6 @@
 
 #include "deck/animations/PageTransition.hpp"
 #include "deck/navigation/PageIndicator.hpp"
-#include "deck/pages/DeckPage.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QKeyEvent>
@@ -45,7 +44,7 @@ PageManager::PageManager(QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);
 }
 
-void PageManager::addPage(pages::DeckPage* page) {
+void PageManager::addPage(QWidget* page) {
     if (page == nullptr) {
         return;
     }

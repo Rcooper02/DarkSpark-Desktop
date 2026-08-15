@@ -2,6 +2,7 @@
 #include "application/Application.hpp"
 
 #include <string_view>
+#include <memory>
 
 #include "deck/DeckWindow.hpp"
 #include "deck/instruments/AnimationClock.hpp"
@@ -15,6 +16,8 @@
 #include "services/GpuVramService.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
 #include "deck/layout/LayoutPersistenceService.hpp"
+#include "deck/layout/DeckLayoutCollection.hpp"
+#include "deck/navigation/PageManager.hpp"
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
@@ -244,16 +247,66 @@ void Application::startCommandDeck() {
 
     auto* outer = new QVBoxLayout(window.get());
     outer->setContentsMargins(0, 0, 0, 0);
-    // Resolve the Command Deck layout from persistence before building the page:
-    // loads a valid persisted layout, or writes+returns the compiled default on
-    // first run / self-recovers from a bad file. The page receives a resolved
-    // layout and knows nothing about JSON or files.
-    deck::layout::LayoutPersistenceService layoutPersistence;
-    const deck::layout::DeckLayout resolvedLayout =
-        layoutPersistence.loadOrDefault();
-    auto* page =
-        new deck::pages::CommandDeckPage(resolvedLayout, window.get());
-    outer->addWidget(page);
+
+    // Resolve the multi-page COLLECTION from persistence before building pages:
+    // loads a valid v2 collection, migrates a legacy v1 file, or writes+returns
+    // the compiled 3-page default on first run / self-recovers from a bad file.
+    // Pages receive resolved layouts and know nothing about JSON or files.
+    auto layoutPersistence =
+        std::make_shared<deck::layout::LayoutPersistenceService>();
+    const deck::layout::DeckLayoutCollection collection =
+        layoutPersistence->loadCollectionOrDefault();
+
+    // A PageManager hosts every page and owns navigation (swipe/keyboard) and
+    // the page indicator. Telemetry routing stays deliberately narrow: only the
+    // System page carries instruments, so we keep a direct pointer to it and
+    // wire telemetry to it exactly as before. Other pages are empty and receive
+    // no telemetry (their instrument accessors are null and are never touched).
+    auto* pageManager = new deck::navigation::PageManager(window.get());
+    deck::pages::CommandDeckPage* systemPage = nullptr;
+    int activeIndex = 0;
+    for (int i = 0; i < static_cast<int>(collection.pages.size()); ++i) {
+        const deck::layout::DeckPageDefinition& def = collection.pages[i];
+        auto* deckPage =
+            new deck::pages::CommandDeckPage(def.layout, pageManager);
+        pageManager->addPage(deckPage);
+        // The System page is the one that actually contains instruments (its
+        // layout places CPU). Identify it by a placed CPU widget so telemetry
+        // binds to the page that has the accessors.
+        if (systemPage == nullptr
+            && deckPage->primaryInstrument() != nullptr) {
+            systemPage = deckPage;
+        }
+        if (def.pageId == collection.activePageId) {
+            activeIndex = i;
+        }
+    }
+    outer->addWidget(pageManager);
+
+    // Restore the persisted active page, then persist future page switches.
+    // activePageChanged fires only on real navigation (not per frame), so the
+    // file is rewritten only on meaningful state changes.
+    pageManager->goToPage(activeIndex);
+    QObject::connect(
+        pageManager, &deck::navigation::PageManager::activePageChanged,
+        pageManager, [layoutPersistence, collection](int index) {
+            if (index >= 0
+                && index < static_cast<int>(collection.pages.size())) {
+                layoutPersistence->saveActivePage(
+                    collection.pages[static_cast<std::size_t>(index)].pageId);
+            }
+        });
+
+    // From here the System page plays the role the single page did before: all
+    // telemetry and the animation clock bind to `page`, which is the System
+    // page. If no page had instruments (should not happen with the compiled
+    // default), fall back to a standalone System page so wiring stays valid.
+    deck::pages::CommandDeckPage* page = systemPage;
+    if (page == nullptr) {
+        page = new deck::pages::CommandDeckPage(
+            deck::layout::defaultCommandDeckLayout(), window.get());
+        outer->addWidget(page);
+    }
 
     // One shared animation clock for the entire Command Deck (parented to the
     // window). It replaces the six former per-instrument timers: every

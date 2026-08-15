@@ -8,19 +8,21 @@
 #include <QString>
 
 #include "deck/layout/DeckLayout.hpp"
+#include "deck/layout/DeckLayoutCollection.hpp"
 
-// Serialization for the pure-data DeckLayout: DeckLayout <-> JSON, plus the
-// enum<->string mappings the persistence batch defers here (they stay out of the
-// pure model so DeckLayout keeps no string/JSON knowledge). This component does
-// NO file I/O -- it only converts data to/from bytes, so it is fully testable
-// without touching disk. The persistence service owns files and paths.
+// Serialization for the pure-data layout types: DeckLayout / DeckLayoutCollection
+// <-> JSON, plus the enum<->string mappings the persistence batch defers here
+// (they stay out of the pure model). This component does NO file I/O -- it only
+// converts data to/from bytes, so it is fully testable without touching disk.
+// The persistence service owns files and paths.
 namespace darkspark::deck::layout {
 
-/// The on-disk schema version. Bumped only when the JSON shape changes. Batch 2
-/// writes and accepts version 1; an unknown/newer version fails to parse
-/// (nullopt) so the caller falls back to the compiled default. Real migration
-/// logic is deferred.
-inline constexpr int kLayoutSchemaVersion = 1;
+/// Current on-disk schema version: 2 (a page collection). Version 1 was a single
+/// DeckLayout; it is still readable for one-way migration to v2. An unknown or
+/// newer version fails to parse (nullopt) so the caller falls back to the
+/// compiled default -- unknown future versions are never interpreted as v2.
+inline constexpr int kCollectionSchemaVersion = 2;
+inline constexpr int kLegacyLayoutSchemaVersion = 1;
 
 // --- enum <-> string mappings (the deferred Batch-1 mappings) ----------------
 // Each toString is total; each fromString returns nullopt for an unrecognised
@@ -38,20 +40,42 @@ inline constexpr int kLayoutSchemaVersion = 1;
 [[nodiscard]] std::optional<InstrumentSizeMode> sizeModeFromString(
     const QString& s);
 
-// --- DeckLayout <-> JSON bytes ----------------------------------------------
+// --- DeckLayout <-> JSON bytes (single page; also used inside collections) ---
 
-/// Serialise a layout to pretty-printed JSON bytes (human-readable, with the
-/// "version" field). Total: any valid DeckLayout serialises.
+/// Serialise a single layout to pretty-printed JSON bytes. Total.
 [[nodiscard]] QByteArray serializeLayout(const DeckLayout& layout);
 
-/// Parse JSON bytes into a DeckLayout. Returns nullopt when the bytes are not
-/// valid JSON, the version is unknown, a required field is missing or the wrong
-/// type, or any enum string is unrecognised. Does NOT run isValidLayout -- the
-/// caller decides whether to additionally validate geometry/overlap. Keeping
-/// parse and validate separate lets tests distinguish "unparseable" from
-/// "parsed but geometrically invalid".
+/// Parse JSON bytes into a DeckLayout (legacy v1 top-level, or a nested page
+/// object without a version field -- see deserializeCollection). Returns nullopt
+/// on malformed JSON, unknown version, missing/mistyped fields, or unknown enum
+/// strings. Does NOT run isValidLayout.
 [[nodiscard]] std::optional<DeckLayout> deserializeLayout(
     const QByteArray& bytes);
+
+// --- DeckLayoutCollection <-> JSON bytes (schema version 2) ------------------
+
+/// Serialise a collection to pretty-printed v2 JSON: { version:2, activePageId,
+/// pages:[{pageId,name,placements:[...]}, ...] }. Total.
+[[nodiscard]] QByteArray serializeCollection(
+    const DeckLayoutCollection& collection);
+
+/// Parse JSON bytes into a collection, honouring the schema version:
+///   * version 2 -> parsed as a collection,
+///   * version 1 -> migrated to a collection (legacy single layout becomes the
+///                  first page; caller supplies extra default pages via
+///                  migrateLegacyLayout, not here),
+///   * anything else / malformed -> nullopt.
+/// Returns nullopt for unknown enums, missing/mistyped fields, or unknown
+/// version. Does NOT run isValidCollection -- the caller validates.
+[[nodiscard]] std::optional<DeckLayoutCollection> deserializeCollection(
+    const QByteArray& bytes);
+
+/// Migrate a legacy v1 single layout into a full v2 collection: the v1 layout
+/// becomes "System" (pageId 0), and empty "Controls" (1) and "Custom" (2) pages
+/// are appended, with activePageId 0. This preserves a valid user's v1 layout
+/// exactly rather than discarding it.
+[[nodiscard]] DeckLayoutCollection migrateLegacyLayout(
+    const DeckLayout& legacy);
 
 }  // namespace darkspark::deck::layout
 

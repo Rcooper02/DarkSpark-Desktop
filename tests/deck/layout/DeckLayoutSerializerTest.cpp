@@ -10,6 +10,7 @@
 #include <QCoreApplication>
 
 #include "deck/layout/DeckLayout.hpp"
+#include "deck/layout/DeckLayoutCollection.hpp"
 #include "deck/layout/DeckLayoutSerializer.hpp"
 
 using namespace darkspark::deck::layout;
@@ -147,6 +148,111 @@ void test_parsed_but_duplicate_and_overlap() {
     CHECK(parsedOv.has_value() && !isValidLayout(*parsedOv));  // overlap
 }
 
+// --- v2 collection + migration ----------------------------------------------
+
+bool sameCollection(const DeckLayoutCollection& a,
+                    const DeckLayoutCollection& b) {
+    if (a.activePageId != b.activePageId) return false;
+    if (a.pages.size() != b.pages.size()) return false;
+    for (std::size_t i = 0; i < a.pages.size(); ++i) {
+        if (a.pages[i].pageId != b.pages[i].pageId) return false;
+        if (a.pages[i].name != b.pages[i].name) return false;
+        if (!(a.pages[i].layout == b.pages[i].layout)) return false;
+    }
+    return true;
+}
+
+void test_collection_round_trip() {
+    const DeckLayoutCollection& def = defaultCommandDeckCollection();
+    const QByteArray bytes = serializeCollection(def);
+    const auto parsed = deserializeCollection(bytes);
+    CHECK(parsed.has_value());
+    CHECK(sameCollection(*parsed, def));
+    CHECK(isValidCollection(*parsed));
+}
+
+void test_collection_preserves_active_page() {
+    DeckLayoutCollection c = defaultCommandDeckCollection();
+    c.activePageId = 2;
+    const auto parsed = deserializeCollection(serializeCollection(c));
+    CHECK(parsed.has_value() && parsed->activePageId == 2);
+}
+
+void test_v1_migrates_to_v2() {
+    // A legacy v1 single-layout file (Batch-2 shape) migrates to a 3-page v2
+    // collection: the v1 layout becomes System (pageId 0), plus empty
+    // Controls(1)/Custom(2), activePageId 0.
+    const QByteArray v1 = serializeLayout(defaultCommandDeckLayout());
+    const auto parsed = deserializeCollection(v1);
+    CHECK(parsed.has_value());
+    CHECK(parsed->pages.size() == 3);
+    CHECK(parsed->activePageId == 0);
+    // System page preserves the exact v1 placements.
+    CHECK(parsed->pages[0].pageId == 0);
+    CHECK(parsed->pages[0].name == QStringLiteral("System"));
+    CHECK(parsed->pages[0].layout.placements.size()
+          == defaultCommandDeckLayout().placements.size());
+    for (std::size_t i = 0; i < defaultCommandDeckLayout().placements.size();
+         ++i) {
+        CHECK(parsed->pages[0].layout.placements[i]
+              == defaultCommandDeckLayout().placements[i]);
+    }
+    // Controls + Custom added, empty.
+    CHECK(parsed->pages[1].name == QStringLiteral("Controls"));
+    CHECK(parsed->pages[1].layout.placements.empty());
+    CHECK(parsed->pages[2].name == QStringLiteral("Custom"));
+    CHECK(parsed->pages[2].layout.placements.empty());
+    CHECK(isValidCollection(*parsed));
+}
+
+void test_v1_migration_preserves_custom_layout() {
+    // A NON-default v1 layout (Storage disabled) must survive migration intact.
+    DeckLayout custom = defaultCommandDeckLayout();
+    for (DeckWidgetPlacement& p : custom.placements) {
+        if (p.id == WidgetId::Storage) p.enabled = false;
+    }
+    const QByteArray v1 = serializeLayout(custom);
+    const auto parsed = deserializeCollection(v1);
+    CHECK(parsed.has_value());
+    bool storageDisabled = false;
+    for (const DeckWidgetPlacement& p : parsed->pages[0].layout.placements) {
+        if (p.id == WidgetId::Storage && !p.enabled) storageDisabled = true;
+    }
+    CHECK(storageDisabled);
+}
+
+void test_unknown_version_collection_fallback() {
+    const QByteArray v3 =
+        "{ \"version\": 3, \"activePageId\": 0, \"pages\": [] }";
+    CHECK(!deserializeCollection(v3).has_value());  // future version -> nullopt
+    const QByteArray noVer = "{ \"activePageId\": 0, \"pages\": [] }";
+    CHECK(!deserializeCollection(noVer).has_value());  // missing version
+}
+
+void test_malformed_collection() {
+    CHECK(!deserializeCollection(QByteArray("not json")).has_value());
+    CHECK(!deserializeCollection(QByteArray("[]")).has_value());
+    // v2 with pages not an array.
+    const QByteArray badPages =
+        "{ \"version\": 2, \"activePageId\": 0, \"pages\": 5 }";
+    CHECK(!deserializeCollection(badPages).has_value());
+    // v2 page missing name.
+    const QByteArray noName =
+        "{ \"version\": 2, \"activePageId\": 0, \"pages\": ["
+        "  { \"pageId\": 0, \"placements\": [] } ] }";
+    CHECK(!deserializeCollection(noName).has_value());
+}
+
+void test_collection_unknown_widget_id_fails() {
+    const QByteArray bad =
+        "{ \"version\": 2, \"activePageId\": 0, \"pages\": ["
+        "  { \"pageId\": 0, \"name\": \"System\", \"placements\": ["
+        "    { \"widgetId\": \"warpcore\", \"region\": \"secondary\","
+        "      \"row\": 0, \"column\": 0, \"rowSpan\": 1, \"columnSpan\": 1,"
+        "      \"sizeMode\": \"small\", \"enabled\": true } ] } ] }";
+    CHECK(!deserializeCollection(bad).has_value());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -161,6 +267,13 @@ int main(int argc, char** argv) {
     test_wrong_field_types();
     test_parsed_but_invalid_geometry();
     test_parsed_but_duplicate_and_overlap();
+    test_collection_round_trip();
+    test_collection_preserves_active_page();
+    test_v1_migrates_to_v2();
+    test_v1_migration_preserves_custom_layout();
+    test_unknown_version_collection_fallback();
+    test_malformed_collection();
+    test_collection_unknown_widget_id_fails();
     if (g_failures == 0) {
         std::puts("All DeckLayoutSerializer tests passed.");
         return 0;
