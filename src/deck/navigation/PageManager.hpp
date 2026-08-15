@@ -9,9 +9,6 @@ class QStackedWidget;
 namespace darkspark::deck::animations {
 class PageTransition;
 }
-namespace darkspark::deck::pages {
-class DeckPage;
-}
 
 namespace darkspark::deck::navigation {
 
@@ -34,8 +31,10 @@ public:
     explicit PageManager(QWidget* parent = nullptr);
 
     /// Add a page. The manager takes ownership via Qt parenting. The first
-    /// page added becomes active.
-    void addPage(pages::DeckPage* page);
+    /// page added becomes active. Accepts any QWidget: the manager only stacks
+    /// and shows pages, so it is page-type-agnostic (hosts CommandDeckPage as
+    /// readily as the legacy DeckPage).
+    void addPage(QWidget* page);
 
     [[nodiscard]] int pageCount() const;
     [[nodiscard]] int activeIndex() const;

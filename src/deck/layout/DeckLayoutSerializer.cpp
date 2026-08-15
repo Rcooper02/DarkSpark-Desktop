@@ -133,17 +133,54 @@ std::optional<DeckWidgetPlacement> placementFromJson(const QJsonObject& o) {
     return p;
 }
 
-}  // namespace
-
-QByteArray serializeLayout(const DeckLayout& layout) {
-    QJsonObject root;
-    root.insert(QStringLiteral("version"), kLayoutSchemaVersion);
-    root.insert(QStringLiteral("pageId"), layout.pageId);
+/// Serialise a layout's placements (and pageId) into a JSON object WITHOUT a
+/// version field. Used both as the v1 top-level body and as each page entry in
+/// a v2 collection.
+QJsonObject layoutBodyToJson(const DeckLayout& layout) {
+    QJsonObject o;
+    o.insert(QStringLiteral("pageId"), layout.pageId);
     QJsonArray placements;
     for (const DeckWidgetPlacement& p : layout.placements) {
         placements.append(placementToJson(p));
     }
-    root.insert(QStringLiteral("placements"), placements);
+    o.insert(QStringLiteral("placements"), placements);
+    return o;
+}
+
+/// Parse a JSON object's "placements" array (and optional "pageId") into a
+/// DeckLayout, no version check. Returns nullopt on a missing/mistyped
+/// placements array or any bad placement.
+std::optional<DeckLayout> layoutBodyFromJson(const QJsonObject& o) {
+    const QJsonValue placements = o.value(QStringLiteral("placements"));
+    if (!placements.isArray()) {
+        return std::nullopt;
+    }
+    DeckLayout layout;
+    const QJsonValue pageId = o.value(QStringLiteral("pageId"));
+    if (pageId.isDouble()) {
+        layout.pageId = pageId.toInt();
+    }
+    const QJsonArray arr = placements.toArray();
+    layout.placements.reserve(static_cast<std::size_t>(arr.size()));
+    for (const QJsonValue& v : arr) {
+        if (!v.isObject()) {
+            return std::nullopt;
+        }
+        const std::optional<DeckWidgetPlacement> p =
+            placementFromJson(v.toObject());
+        if (!p) {
+            return std::nullopt;
+        }
+        layout.placements.push_back(*p);
+    }
+    return layout;
+}
+
+}  // namespace
+
+QByteArray serializeLayout(const DeckLayout& layout) {
+    QJsonObject root = layoutBodyToJson(layout);
+    root.insert(QStringLiteral("version"), kLegacyLayoutSchemaVersion);
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -154,37 +191,118 @@ std::optional<DeckLayout> deserializeLayout(const QByteArray& bytes) {
         return std::nullopt;  // malformed JSON
     }
     const QJsonObject root = doc.object();
-
     const QJsonValue version = root.value(QStringLiteral("version"));
-    if (!version.isDouble() || version.toInt() != kLayoutSchemaVersion) {
-        return std::nullopt;  // missing/unknown/newer version -> fallback
+    if (!version.isDouble()
+        || version.toInt() != kLegacyLayoutSchemaVersion) {
+        return std::nullopt;  // only the legacy v1 shape here
+    }
+    return layoutBodyFromJson(root);
+}
+
+QByteArray serializeCollection(const DeckLayoutCollection& collection) {
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), kCollectionSchemaVersion);
+    root.insert(QStringLiteral("activePageId"), collection.activePageId);
+    QJsonArray pages;
+    for (const DeckPageDefinition& page : collection.pages) {
+        QJsonObject pageObj = layoutBodyToJson(page.layout);
+        // pageId/name are the collection's authoritative fields; overwrite the
+        // body's pageId with the page definition's id for clarity.
+        pageObj.insert(QStringLiteral("pageId"), page.pageId);
+        pageObj.insert(QStringLiteral("name"), page.name);
+        pages.append(pageObj);
+    }
+    root.insert(QStringLiteral("pages"), pages);
+    return QJsonDocument(root).toJson(QJsonDocument::Indented);
+}
+
+std::optional<DeckLayoutCollection> deserializeCollection(
+    const QByteArray& bytes) {
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(bytes, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        return std::nullopt;  // malformed JSON
+    }
+    const QJsonObject root = doc.object();
+    const QJsonValue version = root.value(QStringLiteral("version"));
+    if (!version.isDouble()) {
+        return std::nullopt;  // missing version
+    }
+    const int v = version.toInt();
+
+    // Legacy v1: a single layout. Migrate it to a full collection.
+    if (v == kLegacyLayoutSchemaVersion) {
+        const std::optional<DeckLayout> legacy = layoutBodyFromJson(root);
+        if (!legacy) {
+            return std::nullopt;
+        }
+        return migrateLegacyLayout(*legacy);
     }
 
-    const QJsonValue placements = root.value(QStringLiteral("placements"));
-    if (!placements.isArray()) {
+    // Unknown / newer version: fail safely (never interpreted as v2).
+    if (v != kCollectionSchemaVersion) {
         return std::nullopt;
     }
 
-    DeckLayout layout;
-    // pageId is optional and defaults to 0; accept an integer if present.
-    const QJsonValue pageId = root.value(QStringLiteral("pageId"));
-    if (pageId.isDouble()) {
-        layout.pageId = pageId.toInt();
+    // Version 2: a page collection.
+    const QJsonValue activePageId = root.value(QStringLiteral("activePageId"));
+    const QJsonValue pages = root.value(QStringLiteral("pages"));
+    if (!activePageId.isDouble() || !pages.isArray()) {
+        return std::nullopt;
     }
-
-    const QJsonArray arr = placements.toArray();
-    layout.placements.reserve(static_cast<std::size_t>(arr.size()));
-    for (const QJsonValue& v : arr) {
-        if (!v.isObject()) {
+    DeckLayoutCollection collection;
+    collection.activePageId = activePageId.toInt();
+    const QJsonArray arr = pages.toArray();
+    collection.pages.reserve(static_cast<std::size_t>(arr.size()));
+    for (const QJsonValue& v2 : arr) {
+        if (!v2.isObject()) {
             return std::nullopt;
         }
-        const std::optional<DeckWidgetPlacement> p = placementFromJson(v.toObject());
-        if (!p) {
-            return std::nullopt;  // any bad placement invalidates the whole file
+        const QJsonObject pageObj = v2.toObject();
+        const QJsonValue pageId = pageObj.value(QStringLiteral("pageId"));
+        const QJsonValue name = pageObj.value(QStringLiteral("name"));
+        if (!pageId.isDouble() || !name.isString()) {
+            return std::nullopt;
         }
-        layout.placements.push_back(*p);
+        const std::optional<DeckLayout> layout = layoutBodyFromJson(pageObj);
+        if (!layout) {
+            return std::nullopt;
+        }
+        DeckPageDefinition def;
+        def.pageId = pageId.toInt();
+        def.name = name.toString();
+        def.layout = *layout;
+        collection.pages.push_back(def);
     }
-    return layout;
+    return collection;
+}
+
+DeckLayoutCollection migrateLegacyLayout(const DeckLayout& legacy) {
+    // Preserve the user's v1 layout exactly as "System" (pageId 0), then add the
+    // two empty pages, matching the compiled default's shape.
+    DeckLayoutCollection c;
+    c.activePageId = 0;
+
+    DeckPageDefinition system;
+    system.pageId = 0;
+    system.name = QStringLiteral("System");
+    system.layout = legacy;
+    system.layout.pageId = 0;
+    c.pages.push_back(system);
+
+    DeckPageDefinition controls;
+    controls.pageId = 1;
+    controls.name = QStringLiteral("Controls");
+    controls.layout = DeckLayout{1, {}};
+    c.pages.push_back(controls);
+
+    DeckPageDefinition custom;
+    custom.pageId = 2;
+    custom.name = QStringLiteral("Custom");
+    custom.layout = DeckLayout{2, {}};
+    c.pages.push_back(custom);
+
+    return c;
 }
 
 }  // namespace darkspark::deck::layout

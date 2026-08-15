@@ -92,6 +92,8 @@ qt_add_executable(darkspark-desktop
     src/deck/layout/InstrumentFactory.hpp
     src/deck/layout/DeckLayoutSerializer.cpp
     src/deck/layout/DeckLayoutSerializer.hpp
+    src/deck/layout/DeckLayoutCollection.cpp
+    src/deck/layout/DeckLayoutCollection.hpp
     src/deck/layout/LayoutPersistenceService.cpp
     src/deck/layout/LayoutPersistenceService.hpp
     src/deck/cards/DashboardCard.cpp
@@ -293,6 +295,7 @@ if(BUILD_TESTING)
     add_executable(darkspark-deck-layout-serializer-test
         tests/deck/layout/DeckLayoutSerializerTest.cpp
         src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutCollection.cpp
         src/deck/layout/DeckLayoutSerializer.cpp
     )
     target_include_directories(darkspark-deck-layout-serializer-test PRIVATE
@@ -310,6 +313,7 @@ if(BUILD_TESTING)
     add_executable(darkspark-layout-persistence-test
         tests/deck/layout/LayoutPersistenceServiceTest.cpp
         src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutCollection.cpp
         src/deck/layout/DeckLayoutSerializer.cpp
         src/deck/layout/LayoutPersistenceService.cpp
     )
@@ -321,6 +325,47 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-layout-persistence-test
         COMMAND darkspark-layout-persistence-test
+    )
+
+    # DeckLayoutCollection test: multi-page collection validity, unique ids,
+    # activePageId, empty-page validity. Links Qt6::Core (QString); own main().
+    add_executable(darkspark-deck-layout-collection-test
+        tests/deck/layout/DeckLayoutCollectionTest.cpp
+        src/deck/layout/DeckLayout.cpp
+        src/deck/layout/DeckLayoutCollection.cpp
+    )
+    target_include_directories(darkspark-deck-layout-collection-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-deck-layout-collection-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-deck-layout-collection-test
+        COMMAND darkspark-deck-layout-collection-test
+    )
+
+    # PageManager test: page-type-agnostic hosting (addPage(QWidget*)),
+    # navigation among three pages, activePageChanged. Links Qt6::Widgets
+    # (QWidget + event loop); own main().
+    add_executable(darkspark-page-manager-test
+        tests/deck/navigation/PageManagerTest.cpp
+        src/deck/navigation/PageManager.cpp
+        src/deck/navigation/PageManager.hpp
+        src/deck/navigation/PageIndicator.cpp
+        src/deck/navigation/PageIndicator.hpp
+        src/deck/animations/PageTransition.cpp
+        src/deck/animations/PageTransition.hpp
+        src/themes/LegacyTheme.cpp
+        src/themes/LegacyTheme.hpp
+    )
+    target_include_directories(darkspark-page-manager-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-page-manager-test PRIVATE
+        Qt6::Widgets
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-page-manager-test
+        COMMAND darkspark-page-manager-test
     )
 
     # GPU adapter test: Qt-free, its own executable (own main()).
