@@ -25,17 +25,25 @@ public:
     void press(int page, int row, int column);
     void down(int page, int row, int column);
     void up(int page, int row, int column);
+    void checkHealth();
+
+    [[nodiscard]] bool availabilityKnown() const { return availabilityKnown_; }
+    [[nodiscard]] bool available() const { return available_; }
 
 signals:
     void requestSucceeded(const QString& action, int page, int row, int column);
     void requestFailed(const QString& action, int page, int row, int column,
                        const QString& errorMessage);
+    void availabilityChanged(bool available);
 
 private:
+    void setAvailable(bool available);
     void postControl(const QString& action, int page, int row, int column);
 
     QUrl baseUrl_;
     QNetworkAccessManager* network_ = nullptr;
+    bool availabilityKnown_ = false;
+    bool available_ = false;
 };
 
 }  // namespace darkspark::services

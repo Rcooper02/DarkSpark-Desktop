@@ -88,6 +88,9 @@ qt_add_executable(darkspark-desktop
     src/deck/pages/DeckPage.hpp
     src/deck/pages/CompanionControlsPage.cpp
     src/deck/pages/CompanionControlsPage.hpp
+    src/deck/controls/CompanionControl.hpp
+    src/deck/controls/CompanionControlTile.cpp
+    src/deck/controls/CompanionControlTile.hpp
     src/deck/pages/CommandDeckPage.cpp
     src/deck/pages/SelectionOverlay.cpp
     src/deck/pages/SelectionOverlay.hpp
@@ -382,6 +385,21 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-instrument-model-fanout-test
         COMMAND darkspark-instrument-model-fanout-test
+    )
+
+    # Companion control model validation: QtCore-only data contract for
+    # DarkSpark tiles backed by Companion page/row/column locations.
+    add_executable(darkspark-companion-control-test
+        tests/deck/controls/CompanionControlTest.cpp
+    )
+    target_include_directories(darkspark-companion-control-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-companion-control-test PRIVATE
+        Qt6::Core
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-companion-control-test
+        COMMAND darkspark-companion-control-test
     )
 
     # Companion HTTP client integration test: local QTcpServer captures the

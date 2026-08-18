@@ -1,108 +1,123 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "deck/pages/CompanionControlsPage.hpp"
 
+#include "deck/controls/CompanionControl.hpp"
+#include "deck/controls/CompanionControlTile.hpp"
 #include "services/CompanionClient.hpp"
 #include "themes/LegacyTheme.hpp"
 
+#include <QFrame>
+#include <QGridLayout>
 #include <QLabel>
-#include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include <array>
 
 namespace darkspark::deck::pages {
 
 namespace {
-constexpr int COMPANION_TEST_PAGE = 1;
-constexpr int COMPANION_TEST_ROW = 0;
-constexpr int COMPANION_TEST_COLUMN = 3;
+constexpr int HEALTH_INTERVAL_MS = 5000;
+
+using controls::CompanionControl;
+
+const std::array<CompanionControl, 1> DEFAULT_CONTROLS{{
+    {QStringLiteral("COMPANION TEST"),
+     QStringLiteral("PAGE 1  •  ROW 0  •  COL 3"), 1, 0, 3},
+}};
 }  // namespace
 
 CompanionControlsPage::CompanionControlsPage(services::CompanionClient* client,
                                              QWidget* parent)
     : QWidget(parent), client_(client) {
-    auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(themes::LegacyTheme::space3xl(),
-                               themes::LegacyTheme::space3xl(),
-                               themes::LegacyTheme::space3xl(),
-                               themes::LegacyTheme::space3xl());
-    layout->setSpacing(themes::LegacyTheme::spaceXl());
-    layout->addStretch(1);
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(themes::LegacyTheme::space2xl(),
+                             themes::LegacyTheme::spaceXl(),
+                             themes::LegacyTheme::space2xl(),
+                             themes::LegacyTheme::spaceXl());
+    root->setSpacing(themes::LegacyTheme::spaceLg());
 
-    auto* title = new QLabel(QStringLiteral("COMPANION CONTROL SPIKE"), this);
-    title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet(QStringLiteral("color: %1; font-size: %2px; font-weight: 700;")
+    auto* title = new QLabel(QStringLiteral("CONTROLS"), this);
+    title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    title->setStyleSheet(QStringLiteral(
+        "color: %1; font-size: %2px; font-weight: 700; letter-spacing: 1px;")
                              .arg(themes::LegacyTheme::textPrimary().name())
                              .arg(themes::LegacyTheme::fontPageTitle()));
-    layout->addWidget(title);
+    root->addWidget(title);
 
-    auto* subtitle = new QLabel(
-        QStringLiteral("Native DarkSpark control → Companion 1 / 0 / 3"), this);
-    subtitle->setAlignment(Qt::AlignCenter);
-    subtitle->setStyleSheet(QStringLiteral("color: %1; font-size: %2px;")
-                                .arg(themes::LegacyTheme::textSecondary().name())
-                                .arg(themes::LegacyTheme::fontSupporting()));
-    layout->addWidget(subtitle);
-
-    testButton_ = new QPushButton(QStringLiteral("COMPANION TEST"), this);
-    testButton_->setMinimumSize(260, themes::LegacyTheme::touchTargetPreferred());
-    testButton_->setCursor(Qt::PointingHandCursor);
-    testButton_->setStyleSheet(QStringLiteral(
-        "QPushButton { background: %1; color: %2; border: 2px solid %3;"
-        " border-radius: %4px; padding: 12px 28px; font-weight: 700;"
-        " letter-spacing: 1px; }"
-        "QPushButton:hover { background: %5; border-color: %6; }"
-        "QPushButton:pressed { background: %5; color: %7; border-color: %6; }")
-                                   .arg(themes::LegacyTheme::backgroundRaised().name(),
-                                        themes::LegacyTheme::accentCyan().name(),
-                                        themes::LegacyTheme::borderStrong().name())
-                                   .arg(themes::LegacyTheme::radiusSm())
-                                   .arg(themes::LegacyTheme::backgroundOverlay().name(),
-                                        themes::LegacyTheme::accentCyan().name(),
-                                        themes::LegacyTheme::textPrimary().name()));
-    layout->addWidget(testButton_, 0, Qt::AlignCenter);
-
-    statusLabel_ = new QLabel(QStringLiteral("READY — Companion localhost:8000"), this);
-    statusLabel_->setAlignment(Qt::AlignCenter);
+    statusLabel_ = new QLabel(QStringLiteral("COMPANION — CHECKING"), this);
     statusLabel_->setStyleSheet(QStringLiteral("color: %1; font-size: %2px;")
                                     .arg(themes::LegacyTheme::textSecondary().name())
                                     .arg(themes::LegacyTheme::fontStatus()));
-    layout->addWidget(statusLabel_);
-    layout->addStretch(1);
+    root->addWidget(statusLabel_);
+
+    auto* gridHost = new QWidget(this);
+    auto* grid = new QGridLayout(gridHost);
+    grid->setContentsMargins(0, themes::LegacyTheme::spaceMd(), 0, 0);
+    grid->setHorizontalSpacing(themes::LegacyTheme::spaceLg());
+    grid->setVerticalSpacing(themes::LegacyTheme::spaceLg());
+
+    int slot = 0;
+    for (const CompanionControl& control : DEFAULT_CONTROLS) {
+        const int row = slot / 3;
+        const int column = slot % 3;
+        grid->addWidget(new controls::CompanionControlTile(control, client_, gridHost),
+                        row, column);
+        ++slot;
+    }
+
+    // Keep the future grid shape visible without inventing actions. These are
+    // not buttons and cannot be activated; they simply reserve capacity for the
+    // forthcoming control editor.
+    while (slot < 6) {
+        auto* empty = new QFrame(gridHost);
+        empty->setMinimumSize(220, 112);
+        empty->setStyleSheet(QStringLiteral(
+            "QFrame { background: %1; border: 1px dashed %2; border-radius: %3px; }")
+                                 .arg(themes::LegacyTheme::backgroundRaised().name(),
+                                      themes::LegacyTheme::borderSubtle().name())
+                                 .arg(themes::LegacyTheme::radiusMd()));
+        auto* emptyLayout = new QVBoxLayout(empty);
+        auto* emptyLabel = new QLabel(QStringLiteral("EMPTY"), empty);
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        emptyLabel->setStyleSheet(QStringLiteral("color: %1; font-size: %2px;")
+                                      .arg(themes::LegacyTheme::textDisabled().name())
+                                      .arg(themes::LegacyTheme::fontStatus()));
+        emptyLayout->addWidget(emptyLabel);
+        grid->addWidget(empty, slot / 3, slot % 3);
+        ++slot;
+    }
+
+    for (int column = 0; column < 3; ++column) {
+        grid->setColumnStretch(column, 1);
+    }
+    for (int row = 0; row < 2; ++row) {
+        grid->setRowStretch(row, 1);
+    }
+    root->addWidget(gridHost, 1);
 
     if (client_ == nullptr) {
-        testButton_->setEnabled(false);
-        statusLabel_->setText(QStringLiteral("COMPANION CLIENT UNAVAILABLE"));
+        statusLabel_->setText(QStringLiteral("COMPANION — CLIENT UNAVAILABLE"));
         return;
     }
 
-    connect(testButton_, &QPushButton::pressed, this, [this] {
-        statusLabel_->setText(QStringLiteral("SENDING DOWN…"));
-        client_->down(COMPANION_TEST_PAGE, COMPANION_TEST_ROW,
-                      COMPANION_TEST_COLUMN);
-    });
-    connect(testButton_, &QPushButton::released, this, [this] {
-        statusLabel_->setText(QStringLiteral("SENDING UP…"));
-        client_->up(COMPANION_TEST_PAGE, COMPANION_TEST_ROW,
-                    COMPANION_TEST_COLUMN);
-    });
+    connect(client_, &services::CompanionClient::availabilityChanged, this,
+            [this](bool available) {
+                statusLabel_->setText(available
+                    ? QStringLiteral("COMPANION — ONLINE")
+                    : QStringLiteral("COMPANION — OFFLINE"));
+                statusLabel_->setStyleSheet(QStringLiteral("color: %1; font-size: %2px;")
+                    .arg(available ? themes::LegacyTheme::statusGood().name()
+                                   : themes::LegacyTheme::statusError().name())
+                    .arg(themes::LegacyTheme::fontStatus()));
+            });
 
-    connect(client_, &services::CompanionClient::requestSucceeded, this,
-            [this](const QString& action, int page, int row, int column) {
-                if (page == COMPANION_TEST_PAGE && row == COMPANION_TEST_ROW
-                    && column == COMPANION_TEST_COLUMN) {
-                    statusLabel_->setText(
-                        QStringLiteral("COMPANION OK — %1").arg(action.toUpper()));
-                }
-            });
-    connect(client_, &services::CompanionClient::requestFailed, this,
-            [this](const QString& action, int page, int row, int column,
-                   const QString& error) {
-                if (page == COMPANION_TEST_PAGE && row == COMPANION_TEST_ROW
-                    && column == COMPANION_TEST_COLUMN) {
-                    statusLabel_->setText(
-                        QStringLiteral("COMPANION %1 FAILED — %2")
-                            .arg(action.toUpper(), error));
-                }
-            });
+    auto* healthTimer = new QTimer(this);
+    healthTimer->setInterval(HEALTH_INTERVAL_MS);
+    connect(healthTimer, &QTimer::timeout, client_,
+            &services::CompanionClient::checkHealth);
+    healthTimer->start();
+    client_->checkHealth();
 }
 
 }  // namespace darkspark::deck::pages

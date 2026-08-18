@@ -33,6 +33,40 @@ void CompanionClient::up(int page, int row, int column) {
     postControl(QStringLiteral("up"), page, row, column);
 }
 
+void CompanionClient::setAvailable(bool available) {
+    if (availabilityKnown_ && available_ == available) {
+        return;
+    }
+    availabilityKnown_ = true;
+    available_ = available;
+    emit availabilityChanged(available_);
+}
+
+void CompanionClient::checkHealth() {
+    if (!baseUrl_.isValid() || baseUrl_.isEmpty()) {
+        setAvailable(false);
+        return;
+    }
+
+    QUrl url = baseUrl_;
+    QString basePath = url.path();
+    if (basePath.endsWith(QLatin1Char('/'))) {
+        basePath.chop(1);
+    }
+    url.setPath(QStringLiteral("%1/api/connections").arg(basePath));
+
+    QNetworkRequest request(url);
+    request.setTransferTimeout(REQUEST_TIMEOUT_MS);
+    QNetworkReply* reply = network_->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        const int status =
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        setAvailable(reply->error() == QNetworkReply::NoError
+                     && status >= 200 && status < 300);
+        reply->deleteLater();
+    });
+}
+
 void CompanionClient::postControl(const QString& action, int page, int row,
                                   int column) {
     if (!baseUrl_.isValid() || baseUrl_.isEmpty()) {
@@ -73,8 +107,10 @@ void CompanionClient::postControl(const QString& action, int page, int row,
                 const bool networkOk = reply->error() == QNetworkReply::NoError;
 
                 if (networkOk && httpOk) {
+                    setAvailable(true);
                     emit requestSucceeded(action, page, row, column);
                 } else {
+                    setAvailable(false);
                     QString error = reply->errorString();
                     if (status > 0) {
                         error = QStringLiteral("HTTP %1: %2").arg(status).arg(error);

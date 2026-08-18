@@ -5,7 +5,6 @@
 #include <QWidget>
 
 class QLabel;
-class QPushButton;
 
 namespace darkspark::services {
 class CompanionClient;
@@ -13,12 +12,10 @@ class CompanionClient;
 
 namespace darkspark::deck::pages {
 
-/// First native DarkSpark -> Companion integration surface.
+/// Native DarkSpark Controls page backed by Bitfocus Companion.
 ///
-/// This page is intentionally tiny: one touch-friendly control targets the
-/// Companion test location page 1 / row 0 / column 3 using true down/up events.
-/// It proves the integration boundary before a configurable control-grid model
-/// is introduced.
+/// DarkSpark owns the visual grid and touch interaction. Companion remains a
+/// separate action engine addressed by page/row/column targets.
 class CompanionControlsPage : public QWidget {
     Q_OBJECT
 
@@ -28,7 +25,6 @@ public:
 
 private:
     services::CompanionClient* client_ = nullptr;
-    QPushButton* testButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
 };
 
