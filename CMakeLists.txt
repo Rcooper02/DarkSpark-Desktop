@@ -35,7 +35,7 @@ option(DARKSPARK_WARNINGS_AS_ERRORS
     "Treat compiler warnings as errors (on for project CI/dev)" ON)
 
 # --- Dependencies (system only; no FetchContent) -----------------------------
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network)
 
 # Prefer the target build directory layout to stay out-of-tree.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -62,6 +62,8 @@ qt_add_executable(darkspark-desktop
     src/models/MetricSample.hpp
     src/models/SensorDefinition.hpp
     src/interfaces/ITelemetryProvider.hpp
+    src/services/CompanionClient.cpp
+    src/services/CompanionClient.hpp
     src/services/CpuTelemetryService.cpp
     src/services/CpuTelemetryService.hpp
     src/services/MemoryTelemetryService.cpp
@@ -84,6 +86,8 @@ qt_add_executable(darkspark-desktop
     src/deck/DeckWindow.hpp
     src/deck/pages/DeckPage.cpp
     src/deck/pages/DeckPage.hpp
+    src/deck/pages/CompanionControlsPage.cpp
+    src/deck/pages/CompanionControlsPage.hpp
     src/deck/pages/CommandDeckPage.cpp
     src/deck/pages/SelectionOverlay.cpp
     src/deck/pages/SelectionOverlay.hpp
@@ -186,6 +190,7 @@ target_include_directories(darkspark-desktop PRIVATE
 
 target_link_libraries(darkspark-desktop PRIVATE
     Qt6::Widgets
+    Qt6::Network
     darkspark_warnings)
 
 install(TARGETS darkspark-desktop
@@ -377,6 +382,25 @@ if(BUILD_TESTING)
     add_test(
         NAME darkspark-instrument-model-fanout-test
         COMMAND darkspark-instrument-model-fanout-test
+    )
+
+    # Companion HTTP client integration test: local QTcpServer captures the
+    # asynchronous POST and proves the exact Companion location path. No real
+    # Companion instance or external network is used.
+    add_executable(darkspark-companion-client-test
+        tests/services/CompanionClientTest.cpp
+        src/services/CompanionClient.cpp
+        src/services/CompanionClient.hpp
+    )
+    target_include_directories(darkspark-companion-client-test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(darkspark-companion-client-test PRIVATE
+        Qt6::Core
+        Qt6::Network
+        darkspark_warnings)
+    add_test(
+        NAME darkspark-companion-client-test
+        COMMAND darkspark-companion-client-test
     )
 
     # CommandDeckPage edit test: Edit Mode on the real page -- pointer identity

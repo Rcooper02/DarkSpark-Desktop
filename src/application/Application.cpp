@@ -16,6 +16,7 @@
 #include "services/GpuTelemetryService.hpp"
 #include "services/GpuThermalService.hpp"
 #include "services/GpuVramService.hpp"
+#include "deck/pages/CompanionControlsPage.hpp"
 #include "deck/pages/CommandDeckPage.hpp"
 #include "deck/layout/LayoutPersistenceService.hpp"
 #include "deck/layout/DeckLayoutCollection.hpp"
@@ -23,6 +24,7 @@
 #include "desktop/DesktopWindow.hpp"
 #include "interfaces/ITelemetryProvider.hpp"
 #include "models/MetricSample.hpp"
+#include "services/CompanionClient.hpp"
 #include "services/CpuTelemetryService.hpp"
 #include "services/CpuThermalService.hpp"
 #include "deck/instruments/MemoryInstrument.hpp"
@@ -259,6 +261,11 @@ void Application::startCommandDeck() {
     const deck::layout::DeckLayoutCollection collection =
         layoutPersistence->loadCollectionOrDefault();
 
+    // Companion runs as an independent local control engine. The client is
+    // asynchronous and owned by the Command Deck window, so Companion being
+    // stopped or slow can never block the GUI thread.
+    auto* companionClient = new services::CompanionClient(window.get());
+
     // A PageManager hosts every page and owns navigation (swipe/keyboard) and
     // the page indicator. Each page owns its own instrument QWidget instances;
     // Application collects every live instance and fans one subsystem model out
@@ -312,17 +319,25 @@ void Application::startCommandDeck() {
         };
     for (int i = 0; i < static_cast<int>(collection.pages.size()); ++i) {
         const deck::layout::DeckPageDefinition& def = collection.pages[i];
-        auto* deckPage =
-            new deck::pages::CommandDeckPage(def.layout, pageManager);
-        pageManager->addPage(deckPage);
-        collectPageTargets(deckPage);
-        // The System page is the one that actually contains instruments (its
-        // layout places CPU). Identify it by a placed CPU widget so telemetry
-        // binds to the page that has the accessors.
-        if (systemPage == nullptr
-            && deckPage->primaryInstrument() != nullptr) {
-            systemPage = deckPage;
-            systemPageId = def.pageId;
+        // Page 1 is the existing Controls slot in the compiled collection. For
+        // this integration spike it becomes a native DarkSpark page that drives
+        // Companion over HTTP. System/Custom remain normal CommandDeckPage
+        // instances and retain all telemetry/edit behavior.
+        if (def.pageId == 1) {
+            pageManager->addPage(new deck::pages::CompanionControlsPage(
+                companionClient, pageManager));
+        } else {
+            auto* deckPage =
+                new deck::pages::CommandDeckPage(def.layout, pageManager);
+            pageManager->addPage(deckPage);
+            collectPageTargets(deckPage);
+            // The System page is the one that actually contains instruments
+            // (its layout places CPU).
+            if (systemPage == nullptr
+                && deckPage->primaryInstrument() != nullptr) {
+                systemPage = deckPage;
+                systemPageId = def.pageId;
+            }
         }
         if (def.pageId == collection.activePageId) {
             activeIndex = i;
