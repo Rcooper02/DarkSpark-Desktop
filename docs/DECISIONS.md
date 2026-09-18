@@ -149,3 +149,36 @@ language and a safe dependency seam before the EMEET PIXY arrives.
 - Camera/audio/AI implementations cannot be placed in Deck widgets.
 - Computer actions will require an explicit allow-listed action boundary.
 - Privacy state must be visible whenever sensing features are introduced.
+
+---
+
+## ADR-007
+
+**Date:** 2026-09-18
+
+**Status:** Accepted
+
+### Decision
+
+The permanent first three Deck pages are ordered as follows:
+
+1. Command — the HAL-inspired Companion eye and command summary; always active
+   at startup.
+2. System — monitoring plus audio transport and volume controls.
+3. Control Deck — a Stream Deck-style Fedora launcher grid plus audio controls.
+
+Existing swipe, keyboard, and page-indicator navigation remain the only owners
+of page movement. Desktop controls cross an allow-listed service boundary; UI
+widgets never construct or execute shell commands.
+
+### Rationale
+
+The ordering matches the XENEON EDGE's daily purpose: Companion presence first,
+health information one swipe away, and high-frequency controls one additional
+swipe away.
+
+### Consequences
+
+- Page zero must remain Command unless the decision is deliberately revised.
+- Control actions are enum values, not arbitrary command strings.
+- Missing optional Fedora utilities produce visible degraded feedback.

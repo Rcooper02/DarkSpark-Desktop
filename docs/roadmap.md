@@ -36,6 +36,12 @@ Explicitly excluded from Companion-0: camera/microphone access, face or presence
 recognition, wake-word detection, speech-to-text, text-to-speech, network AI,
 and computer automation.
 
+The core Deck order is Command, System, then Control Deck. Command holds the
+Companion eye and is always page zero at boot. System combines monitoring with
+audio transport/volume controls. Control Deck provides an allow-listed Fedora
+launcher grid and a second audio-control surface while preserving swipe
+navigation.
+
 ### Companion-1: PIXY eyes and ears
 
 After the device interfaces are verified on Fedora, add optional camera,

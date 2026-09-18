@@ -16,9 +16,14 @@ namespace darkspark::models {
 class MetricSample;
 enum class CompanionState;
 struct GazeTarget;
+enum class ControlAction;
 }
 namespace darkspark::deck::companion {
 class CompanionCard;
+}
+namespace darkspark::deck::cards {
+class AudioControlCard;
+class ControlDeckCard;
 }
 
 namespace darkspark::deck {
@@ -60,12 +65,15 @@ public:
     void setCompanionState(models::CompanionState state);
     void setCompanionGazeTarget(models::GazeTarget target);
     void clearCompanionGazeTarget();
+    void reportControlResult(models::ControlAction action, bool success,
+                             const QString& message);
 
 signals:
     /// Emitted when the user requests to leave Deck Mode (Exit button or
     /// Escape). The owner decides what "leaving" means (close, or return to a
     /// desktop window).
     void exitRequested();
+    void controlRequested(models::ControlAction action);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -79,6 +87,9 @@ private:
     /// stack. Never exposed publicly; may be null if that page is absent.
     pages::DeckPage* systemPage_ = nullptr;
     companion::CompanionCard* companionCard_ = nullptr;
+    cards::AudioControlCard* systemAudioCard_ = nullptr;
+    cards::AudioControlCard* controlAudioCard_ = nullptr;
+    cards::ControlDeckCard* controlDeckCard_ = nullptr;
 };
 
 }  // namespace darkspark::deck

@@ -2,6 +2,8 @@
 #include "deck/DeckWindow.hpp"
 
 #include "deck/cards/DashboardCard.hpp"
+#include "deck/cards/AudioControlCard.hpp"
+#include "deck/cards/ControlDeckCard.hpp"
 #include "deck/companion/CompanionCard.hpp"
 #include "deck/navigation/PageManager.hpp"
 #include "deck/pages/DeckPage.hpp"
@@ -21,6 +23,8 @@
 namespace darkspark::deck {
 
 using cards::DashboardCard;
+using cards::AudioControlCard;
+using cards::ControlDeckCard;
 using companion::CompanionCard;
 using navigation::PageManager;
 using pages::DeckPage;
@@ -53,6 +57,7 @@ using St = DashboardCard::State;
 /// kPagePlans below.
 constexpr const char* kSystemPageTitle = "System";
 constexpr const char* kCommandPageTitle = "Command";
+constexpr const char* kControlDeckPageTitle = "Control Deck";
 
 const std::initializer_list<PagePlan> kPagePlans = {
     {"Command",
@@ -65,10 +70,7 @@ const std::initializer_list<PagePlan> kPagePlans = {
       {"GPU", "Utilization", S::Medium, A::Purple, St::Normal},
       {"Storage", "Capacity", S::Medium, A::None, St::Normal},
       {"Network", "Throughput", S::Medium, A::None, St::Unavailable}}},
-    {"Media",
-     {{"Now Playing", "Nothing playing", S::Large, A::Cyan, St::Empty},
-      {"Playback Controls", "Transport", S::Wide, A::None, St::Disabled},
-      {"Output Device", "Default", S::Medium, A::Purple, St::Normal}}},
+    {"Control Deck", {}},
     {"Communications",
      {{"Chat", "No conversations", S::Large, A::Cyan, St::Empty},
       {"Notifications", "None", S::Medium, A::None, St::Normal},
@@ -127,6 +129,22 @@ void DeckWindow::buildPages() {
             connect(companionCard_, &CompanionCard::stateRequested, this,
                     &DeckWindow::setCompanionState);
         }
+        if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
+            systemAudioCard_ = new AudioControlCard();
+            page->addCard(systemAudioCard_);
+            connect(systemAudioCard_, &AudioControlCard::actionRequested, this,
+                    &DeckWindow::controlRequested);
+        }
+        if (std::strcmp(plan.title, kControlDeckPageTitle) == 0) {
+            controlDeckCard_ = new ControlDeckCard();
+            controlAudioCard_ = new AudioControlCard();
+            page->addCard(controlDeckCard_);
+            page->addCard(controlAudioCard_);
+            connect(controlDeckCard_, &ControlDeckCard::actionRequested, this,
+                    &DeckWindow::controlRequested);
+            connect(controlAudioCard_, &AudioControlCard::actionRequested, this,
+                    &DeckWindow::controlRequested);
+        }
         for (const auto& cardPlan : plan.cards) {
             auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
             if (cardPlan.subtitle != nullptr && cardPlan.subtitle[0] != '\0') {
@@ -156,6 +174,20 @@ void DeckWindow::setCompanionGazeTarget(models::GazeTarget target) {
 void DeckWindow::clearCompanionGazeTarget() {
     if (companionCard_ != nullptr) {
         companionCard_->clearGazeTarget();
+    }
+}
+
+void DeckWindow::reportControlResult(models::ControlAction action, bool success,
+                                     const QString& message) {
+    Q_UNUSED(action);
+    if (systemAudioCard_ != nullptr) {
+        systemAudioCard_->reportResult(success, message);
+    }
+    if (controlAudioCard_ != nullptr) {
+        controlAudioCard_->reportResult(success, message);
+    }
+    if (controlDeckCard_ != nullptr) {
+        controlDeckCard_->reportResult(success, message);
     }
 }
 
