@@ -36,11 +36,16 @@ Explicitly excluded from Companion-0: camera/microphone access, face or presence
 recognition, wake-word detection, speech-to-text, text-to-speech, network AI,
 and computer automation.
 
-The core Deck order is Command, System, then Control Deck. Command holds the
-Companion eye and is always page zero at boot. System combines monitoring with
-audio transport/volume controls. Control Deck provides an allow-listed Fedora
-launcher grid and a second audio-control surface while preserving swipe
-navigation.
+The core Deck order is Command, System, Control Deck, then Expansion. Command
+holds the Companion eye and is always page zero at boot. System combines
+monitoring with audio transport/volume controls. Control Deck provides an
+allow-listed Fedora launcher grid and a second audio-control surface while
+preserving swipe navigation. Expansion is a deliberately empty fourth slot;
+its purpose remains undecided.
+
+When local voice reaches Companion-2, HAL audio commands reuse the existing
+ControlAction allow list and DesktopControlService. Voice input does not create
+a parallel command executor and cannot supply arbitrary shell text.
 
 ### Companion-1: PIXY eyes and ears
 

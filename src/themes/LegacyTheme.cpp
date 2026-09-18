@@ -77,6 +77,8 @@ QString LegacyTheme::cardDividerObjectName() { return QStringLiteral("LegacyCard
 QString LegacyTheme::pageObjectName() { return QStringLiteral("LegacyPage"); }
 QString LegacyTheme::pageHeaderObjectName() { return QStringLiteral("LegacyPageHeader"); }
 QString LegacyTheme::exitButtonObjectName() { return QStringLiteral("LegacyExitButton"); }
+QString LegacyTheme::mediaConsoleObjectName() { return QStringLiteral("MediaConsole"); }
+QString LegacyTheme::mediaDisplayObjectName() { return QStringLiteral("MediaDisplay"); }
 
 QString LegacyTheme::styleSheet() {
     // Single centralized style sheet. Selectors are scoped by object name and
@@ -297,6 +299,23 @@ QString LegacyTheme::styleSheet() {
                  .arg(touchTargetMin())
                  .arg(cyan, purple, textDis)
                  .arg(exitButtonObjectName(), err);
+
+    sheet += QStringLiteral(
+                 "QFrame#%1 { background-color: %2; border: %3px solid %4;"
+                 " border-radius: %5px; }"
+                 "QLabel#%6 { background-color: %7; color: %8;"
+                 " border: %3px solid %9; border-radius: %10px;"
+                 " font-family: \"%11\"; font-size: %12px; font-weight: 600;"
+                 " letter-spacing: 1px; }")
+                 .arg(mediaConsoleObjectName(), backgroundOverlay().name())
+                 .arg(borderHairline())
+                 .arg(borderStrong().name())
+                 .arg(radiusLg())
+                 .arg(mediaDisplayObjectName(), backgroundBase().name(),
+                      textPrimary().name(), accentPurple().name())
+                 .arg(radiusSm())
+                 .arg(monoFontFamily())
+                 .arg(fontSupporting());
 
     return sheet;
 }

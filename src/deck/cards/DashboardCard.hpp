@@ -62,7 +62,7 @@ public:
 
     /// Presentation size role. A layout hint only; DeckPage interprets it. Not
     /// a layout engine, not user-resizable, not persisted.
-    enum class Size { Small, Medium, Large, Wide };
+    enum class Size { Small, Medium, Large, Wide, Full };
 
     explicit DashboardCard(QString title, QWidget* parent = nullptr);
 

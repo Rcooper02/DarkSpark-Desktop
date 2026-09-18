@@ -30,7 +30,7 @@ namespace darkspark::deck {
 
 /// The Deck Mode presentation window.
 ///
-/// DeckWindow hosts the PageManager and the five placeholder pages. In Deck
+/// DeckWindow hosts the PageManager and the four core/reserved pages. In Deck
 /// Mode it is frameless and shown fullscreen on a chosen screen, sized for the
 /// 2560x720 target but functional at other sizes. It always provides a visible
 /// Exit control and honors the Escape key so a user can never be trapped in
@@ -88,7 +88,6 @@ private:
     pages::DeckPage* systemPage_ = nullptr;
     companion::CompanionCard* companionCard_ = nullptr;
     cards::AudioControlCard* systemAudioCard_ = nullptr;
-    cards::AudioControlCard* controlAudioCard_ = nullptr;
     cards::ControlDeckCard* controlDeckCard_ = nullptr;
 };
 

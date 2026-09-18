@@ -89,6 +89,8 @@ qt_add_executable(darkspark-desktop
     src/deck/cards/AudioControlCard.hpp
     src/deck/cards/ControlDeckCard.cpp
     src/deck/cards/ControlDeckCard.hpp
+    src/deck/cards/GlassActionButton.cpp
+    src/deck/cards/GlassActionButton.hpp
     src/deck/companion/CompanionCard.cpp
     src/deck/companion/CompanionCard.hpp
     src/deck/companion/CompanionFaceWidget.cpp

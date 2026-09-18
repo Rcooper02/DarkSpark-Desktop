@@ -255,6 +255,9 @@ int DeckPage::spanForSize(const DashboardCard* card, int columns) {
     case DashboardCard::Size::Wide:
         span = 3;
         break;
+    case DashboardCard::Size::Full:
+        span = columns;
+        break;
     }
     return std::clamp(span, 1, columns);
 }

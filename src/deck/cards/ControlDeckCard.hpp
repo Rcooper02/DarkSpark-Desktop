@@ -5,6 +5,8 @@
 #include "deck/cards/DashboardCard.hpp"
 #include "models/ControlAction.hpp"
 
+class QLabel;
+
 namespace darkspark::deck::cards {
 
 /// Large Stream Deck-style launcher grid for the third swipe page.
@@ -17,6 +19,9 @@ public:
 
 signals:
     void actionRequested(models::ControlAction action);
+
+private:
+    QLabel* mediaDisplay_ = nullptr;
 };
 
 }  // namespace darkspark::deck::cards

@@ -71,14 +71,10 @@ const std::initializer_list<PagePlan> kPagePlans = {
       {"Storage", "Capacity", S::Medium, A::None, St::Normal},
       {"Network", "Throughput", S::Medium, A::None, St::Unavailable}}},
     {"Control Deck", {}},
-    {"Communications",
-     {{"Chat", "No conversations", S::Large, A::Cyan, St::Empty},
-      {"Notifications", "None", S::Medium, A::None, St::Normal},
-      {"Presence", "Status", S::Medium, A::Purple, St::Warning}}},
-    {"Home",
-     {{"Homepage", "Dashboard", S::Wide, A::Cyan, St::Loading},
-      {"Weather", "Not configured", S::Medium, A::None, St::Unavailable},
-      {"Calendar", "No events", S::Large, A::Purple, St::Empty}}},
+    {"Expansion",
+     {{"Future Module", "Reserved fourth screen", S::Wide, A::Purple, St::Empty},
+      {"Not Configured", "Ready when its purpose is defined", S::Large,
+       A::None, St::Unavailable}}},
 };
 }  // namespace
 
@@ -137,12 +133,8 @@ void DeckWindow::buildPages() {
         }
         if (std::strcmp(plan.title, kControlDeckPageTitle) == 0) {
             controlDeckCard_ = new ControlDeckCard();
-            controlAudioCard_ = new AudioControlCard();
             page->addCard(controlDeckCard_);
-            page->addCard(controlAudioCard_);
             connect(controlDeckCard_, &ControlDeckCard::actionRequested, this,
-                    &DeckWindow::controlRequested);
-            connect(controlAudioCard_, &AudioControlCard::actionRequested, this,
                     &DeckWindow::controlRequested);
         }
         for (const auto& cardPlan : plan.cards) {
@@ -182,9 +174,6 @@ void DeckWindow::reportControlResult(models::ControlAction action, bool success,
     Q_UNUSED(action);
     if (systemAudioCard_ != nullptr) {
         systemAudioCard_->reportResult(success, message);
-    }
-    if (controlAudioCard_ != nullptr) {
-        controlAudioCard_->reportResult(success, message);
     }
     if (controlDeckCard_ != nullptr) {
         controlDeckCard_->reportResult(success, message);

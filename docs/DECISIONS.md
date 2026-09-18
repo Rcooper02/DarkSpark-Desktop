@@ -160,12 +160,15 @@ language and a safe dependency seam before the EMEET PIXY arrives.
 
 ### Decision
 
-The permanent first three Deck pages are ordered as follows:
+The permanent first three Deck pages and reserved fourth slot are ordered as
+follows:
 
 1. Command — the HAL-inspired Companion eye and command summary; always active
    at startup.
 2. System — monitoring plus audio transport and volume controls.
 3. Control Deck — a Stream Deck-style Fedora launcher grid plus audio controls.
+4. Expansion — an intentionally unconfigured slot whose purpose will be chosen
+   from a real future requirement.
 
 Existing swipe, keyboard, and page-indicator navigation remain the only owners
 of page movement. Desktop controls cross an allow-listed service boundary; UI
@@ -180,5 +183,8 @@ swipe away.
 ### Consequences
 
 - Page zero must remain Command unless the decision is deliberately revised.
+- The Expansion page must not gain speculative features merely to fill space.
 - Control actions are enum values, not arbitrary command strings.
 - Missing optional Fedora utilities produce visible degraded feedback.
+- Future HAL voice/audio intents reuse the same ControlAction allow list and
+  DesktopControlService as touch controls.
