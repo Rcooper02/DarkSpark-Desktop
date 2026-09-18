@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "models/MetricSample.hpp"
 #include "models/SensorDefinition.hpp"
+#include "models/CompanionState.hpp"
+#include "models/GazeTarget.hpp"
 #include <cstdio>
 #include <limits>
 #include <optional>
@@ -177,6 +179,22 @@ void test_sensor_definition_minimal() {
     same.displayName = "Changed";
     CHECK(same != def);
 }
+void test_companion_state_names() {
+    using darkspark::models::CompanionState;
+    using darkspark::models::companionStateName;
+    CHECK(companionStateName(CompanionState::Dormant) == "Dormant");
+    CHECK(companionStateName(CompanionState::Idle) == "Idle");
+    CHECK(companionStateName(CompanionState::Listening) == "Listening");
+    CHECK(companionStateName(CompanionState::Thinking) == "Thinking");
+    CHECK(companionStateName(CompanionState::Speaking) == "Speaking");
+    CHECK(companionStateName(CompanionState::Alert) == "Alert");
+}
+void test_gaze_target_clamps_to_camera_frame() {
+    using darkspark::models::GazeTarget;
+    const GazeTarget target{1.8, -4.0};
+    CHECK((target.clamped() == GazeTarget{1.0, -1.0}));
+    CHECK((GazeTarget{0.25, -0.5}.clamped() == GazeTarget{0.25, -0.5}));
+}
 }
 int main() {
     test_unavailable_has_no_value();
@@ -198,6 +216,8 @@ int main() {
     test_sensor_key_struct_equality();
     test_celsius_unit_carried();
     test_sensor_definition_minimal();
+    test_companion_state_names();
+    test_gaze_target_clamps_to_camera_frame();
     if (g_failures == 0) { std::puts("All MetricSample tests passed."); return 0; }
     std::fprintf(stderr, "%d check(s) failed.\n", g_failures); return 1;
 }

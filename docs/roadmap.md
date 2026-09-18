@@ -22,6 +22,37 @@ navigation and placeholders, and nothing more. Scope is fixed below.
 Introduce real system monitoring cards, fed by services through models and
 interfaces. First use of the service → model → interface → card data flow.
 
+### Companion-0: animated local presence (current)
+
+Establish the DarkSpark Companion without requiring camera or audio hardware:
+
+- data-only Dormant, Idle, Listening, Thinking, Speaking, and Alert states
+- animated single red optical lens embedded in the Command dashboard
+- normalized gaze-target input with a hardware-free tracking simulation
+- touch-friendly manual state controls for development and demonstration
+- a presentation seam for future services
+
+Explicitly excluded from Companion-0: camera/microphone access, face or presence
+recognition, wake-word detection, speech-to-text, text-to-speech, network AI,
+and computer automation.
+
+### Companion-1: PIXY eyes and ears
+
+After the device interfaces are verified on Fedora, add optional camera,
+microphone, PTZ, privacy, and presence services. Hardware failure must leave the
+Command dashboard functional in an explicit unavailable state.
+
+### Companion-2: local voice loop
+
+Add local wake-word detection, bounded speech capture, speech-to-text, and
+text-to-speech. Listening state must be visible and audio capture must be
+session-bounded rather than continuous cloud transcription.
+
+### Companion-3: conversational command center
+
+Add an AI conversation service plus allow-listed DarkSpark actions. Arbitrary
+model-generated shell execution is outside the approved design.
+
 ### Deck-2: customizable and persistent layouts
 
 Allow arranging cards and pages, and saving and restoring that arrangement.

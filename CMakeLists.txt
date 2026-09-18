@@ -61,6 +61,8 @@ qt_add_executable(darkspark-desktop
     src/models/MetricSample.cpp
     src/models/MetricSample.hpp
     src/models/SensorDefinition.hpp
+    src/models/CompanionState.hpp
+    src/models/GazeTarget.hpp
     src/interfaces/ITelemetryProvider.hpp
     src/services/CpuTelemetryService.cpp
     src/services/CpuTelemetryService.hpp
@@ -80,6 +82,10 @@ qt_add_executable(darkspark-desktop
     src/deck/cards/DashboardCard.hpp
     src/deck/cards/StatusIndicator.cpp
     src/deck/cards/StatusIndicator.hpp
+    src/deck/companion/CompanionCard.cpp
+    src/deck/companion/CompanionCard.hpp
+    src/deck/companion/CompanionFaceWidget.cpp
+    src/deck/companion/CompanionFaceWidget.hpp
     src/deck/navigation/PageManager.cpp
     src/deck/navigation/PageManager.hpp
     src/deck/navigation/PageIndicator.cpp

@@ -2,6 +2,7 @@
 #include "deck/DeckWindow.hpp"
 
 #include "deck/cards/DashboardCard.hpp"
+#include "deck/companion/CompanionCard.hpp"
 #include "deck/navigation/PageManager.hpp"
 #include "deck/pages/DeckPage.hpp"
 #include "models/MetricSample.hpp"
@@ -20,6 +21,7 @@
 namespace darkspark::deck {
 
 using cards::DashboardCard;
+using companion::CompanionCard;
 using navigation::PageManager;
 using pages::DeckPage;
 using themes::LegacyTheme;
@@ -50,6 +52,7 @@ using St = DashboardCard::State;
 /// Title of the page that presents system telemetry. Must match the entry in
 /// kPagePlans below.
 constexpr const char* kSystemPageTitle = "System";
+constexpr const char* kCommandPageTitle = "Command";
 
 const std::initializer_list<PagePlan> kPagePlans = {
     {"Command",
@@ -118,6 +121,12 @@ void DeckWindow::buildPages() {
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
             systemPage_ = page;
         }
+        if (std::strcmp(plan.title, kCommandPageTitle) == 0) {
+            companionCard_ = new CompanionCard();
+            page->addCard(companionCard_);
+            connect(companionCard_, &CompanionCard::stateRequested, this,
+                    &DeckWindow::setCompanionState);
+        }
         for (const auto& cardPlan : plan.cards) {
             auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
             if (cardPlan.subtitle != nullptr && cardPlan.subtitle[0] != '\0') {
@@ -129,6 +138,24 @@ void DeckWindow::buildPages() {
             page->addCard(card);
         }
         pageManager_->addPage(page);
+    }
+}
+
+void DeckWindow::setCompanionState(models::CompanionState state) {
+    if (companionCard_ != nullptr) {
+        companionCard_->setCompanionState(state);
+    }
+}
+
+void DeckWindow::setCompanionGazeTarget(models::GazeTarget target) {
+    if (companionCard_ != nullptr) {
+        companionCard_->setGazeTarget(target);
+    }
+}
+
+void DeckWindow::clearCompanionGazeTarget() {
+    if (companionCard_ != nullptr) {
+        companionCard_->clearGazeTarget();
     }
 }
 

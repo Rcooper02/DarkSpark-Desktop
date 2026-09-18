@@ -232,6 +232,14 @@ QString LegacyTheme::styleSheet() {
                  .arg(fontSupporting())
                  .arg(fontStatus());
 
+    sheet += QStringLiteral(
+                 "QLabel[legacyRole=\"companionState\"]"
+                 " { color: %1; font-size: %2px; font-weight: 700;"
+                 " letter-spacing: 2px; font-family: \"%3\"; }")
+                 .arg(cyan)
+                 .arg(fontCardTitle())
+                 .arg(monoFontFamily());
+
     // Primary value: the prominent live numeric readout on a data card. Uses
     // the existing fontPrimaryValue token and a monospaced family so changing
     // digits do not shift layout (docs/STYLE_GUIDE.md "Numbers and Units").

@@ -14,6 +14,11 @@ class DeckPage;
 }
 namespace darkspark::models {
 class MetricSample;
+enum class CompanionState;
+struct GazeTarget;
+}
+namespace darkspark::deck::companion {
+class CompanionCard;
 }
 
 namespace darkspark::deck {
@@ -50,6 +55,11 @@ public:
     /// The window does not expose its pages or cards; routing is internal. A
     /// sample for a metric this window does not present is ignored safely.
     void receiveTelemetry(const models::MetricSample& sample);
+    /// Update the Companion presentation. Future services can use this seam
+    /// without depending on the concrete Companion card.
+    void setCompanionState(models::CompanionState state);
+    void setCompanionGazeTarget(models::GazeTarget target);
+    void clearCompanionGazeTarget();
 
 signals:
     /// Emitted when the user requests to leave Deck Mode (Exit button or
@@ -68,6 +78,7 @@ private:
     /// while building pages. The pages themselves are owned by the PageManager's
     /// stack. Never exposed publicly; may be null if that page is absent.
     pages::DeckPage* systemPage_ = nullptr;
+    companion::CompanionCard* companionCard_ = nullptr;
 };
 
 }  // namespace darkspark::deck
