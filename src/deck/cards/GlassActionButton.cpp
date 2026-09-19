@@ -25,7 +25,7 @@ void GlassActionButton::paintEvent(QPaintEvent* event) {
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const qreal travel = isDown() ? 5.0 : 0.0;
-    QRectF key = rect().adjusted(5.0, 4.0 + travel, -5.0, -9.0 + travel);
+    QRectF key = QRectF(rect()).adjusted(5.0, 4.0 + travel, -5.0, -9.0 + travel);
 
     // Recess and lower shadow create visible depth against the dashboard.
     painter.setPen(Qt::NoPen);

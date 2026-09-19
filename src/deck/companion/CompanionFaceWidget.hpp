@@ -35,7 +35,10 @@ private:
     [[nodiscard]] double animationSeconds() const;
 
     models::CompanionState state_ = models::CompanionState::Idle;
+
+    // Camera-requested target and the deliberately slower rendered gaze.
     models::GazeTarget gazeTarget_;
+    models::GazeTarget renderedGaze_;
     bool hasGazeTarget_ = false;
     QTimer* animationTimer_;
     QElapsedTimer elapsed_;

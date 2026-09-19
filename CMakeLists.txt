@@ -35,7 +35,7 @@ option(DARKSPARK_WARNINGS_AS_ERRORS
     "Treat compiler warnings as errors (on for project CI/dev)" ON)
 
 # --- Dependencies (system only; no FetchContent) -----------------------------
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network)
 
 # Prefer the target build directory layout to stay out-of-tree.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -75,6 +75,8 @@ qt_add_executable(darkspark-desktop
     src/services/CpuThermalService.hpp
     src/services/DesktopControlService.cpp
     src/services/DesktopControlService.hpp
+    src/services/CompanionTrackingService.cpp
+    src/services/CompanionTrackingService.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -110,6 +112,7 @@ target_include_directories(darkspark-desktop PRIVATE
 
 target_link_libraries(darkspark-desktop PRIVATE
     Qt6::Widgets
+    Qt6::Network
     darkspark_warnings)
 
 install(TARGETS darkspark-desktop

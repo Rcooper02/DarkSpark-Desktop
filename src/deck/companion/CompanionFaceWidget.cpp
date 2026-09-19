@@ -19,7 +19,7 @@ CompanionFaceWidget::CompanionFaceWidget(QWidget* parent)
     setMinimumSize(340, 280);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     elapsed_.start();
-    animationTimer_->setInterval(50);
+    animationTimer_->setInterval(16);
     connect(animationTimer_, &QTimer::timeout, this,
             qOverload<>(&CompanionFaceWidget::update));
     animationTimer_->start();
@@ -37,9 +37,20 @@ void CompanionFaceWidget::setCompanionState(CompanionState state) {
 CompanionState CompanionFaceWidget::companionState() const { return state_; }
 
 void CompanionFaceWidget::setGazeTarget(models::GazeTarget target) {
-    gazeTarget_ = target.clamped();
+    target = target.clamped();
+
+    // Ignore tiny detector fluctuations. The camera can move a few pixels
+    // even when a person is standing still; HAL should not twitch with it.
+    constexpr double kDeadZone = 0.035;
+
+    if (hasGazeTarget_ &&
+        std::abs(target.horizontal - gazeTarget_.horizontal) < kDeadZone &&
+        std::abs(target.vertical - gazeTarget_.vertical) < kDeadZone) {
+        return;
+    }
+
+    gazeTarget_ = target;
     hasGazeTarget_ = true;
-    update();
 }
 
 void CompanionFaceWidget::clearGazeTarget() {
@@ -83,14 +94,28 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
         intensity = 0.88 + std::abs(std::sin(seconds * 7.0)) * 0.12;
     }
 
-    const models::GazeTarget gaze = hasGazeTarget_
-                                        ? gazeTarget_
-                                        : models::GazeTarget{
-                                              std::sin(seconds * 0.48) * 0.34,
-                                              std::sin(seconds * 0.31) * 0.16};
+    // HAL-style gaze behaviour:
+    // camera data selects a destination, but the rendered eye deliberately
+    // glides toward it rather than mirroring every detector update.
+    const models::GazeTarget desiredGaze =
+        hasGazeTarget_
+            ? gazeTarget_
+            : models::GazeTarget{
+                  std::sin(seconds * 0.48) * 0.34,
+                  std::sin(seconds * 0.31) * 0.16};
+
+    // Exponential easing. At ~60 Hz this produces a noticeable, deliberate
+    // movement rather than webcam-like snapping.
+    constexpr double kGazeEase = 0.045;
+
+    renderedGaze_.horizontal +=
+        (desiredGaze.horizontal - renderedGaze_.horizontal) * kGazeEase;
+    renderedGaze_.vertical +=
+        (desiredGaze.vertical - renderedGaze_.vertical) * kGazeEase;
+
     const QPointF opticalCenter(
-        housingCenter.x() + gaze.horizontal * lensDiameter * 0.10,
-        housingCenter.y() + gaze.vertical * lensDiameter * 0.08);
+        housingCenter.x() + renderedGaze_.horizontal * lensDiameter * 0.14,
+        housingCenter.y() + renderedGaze_.vertical * lensDiameter * 0.11);
 
     QRadialGradient lensGlow(opticalCenter, lensDiameter * 0.58);
     lensGlow.setColorAt(0.0, QColor(255, 246, 220,

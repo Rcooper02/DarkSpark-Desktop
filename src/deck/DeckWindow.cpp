@@ -60,10 +60,10 @@ constexpr const char* kCommandPageTitle = "Command";
 constexpr const char* kControlDeckPageTitle = "Control Deck";
 
 const std::initializer_list<PagePlan> kPagePlans = {
-    {"Command",
-     {{"Quick Actions", "Common controls", S::Wide, A::Cyan, St::Normal},
-      {"Recent Activity", "Nothing yet", S::Medium, A::None, St::Empty},
-      {"System Summary", "At a glance", S::Large, A::Purple, St::Normal}}},
+    // Page 1 is intentionally Companion-first. The XENEON EDGE is only
+    // 720 pixels tall, so HAL owns this page instead of sharing it with
+    // placeholder dashboard cards.
+    {"Command", {}},
     {"System",
      {{"CPU", "Utilization", S::Medium, A::Cyan, St::Normal},
       {"Memory", "In use", S::Medium, A::Cyan, St::Normal},
