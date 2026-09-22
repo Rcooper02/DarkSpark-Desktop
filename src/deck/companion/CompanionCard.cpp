@@ -83,7 +83,13 @@ CompanionCard::CompanionCard(QWidget* parent)
       face_(new CompanionFaceWidget(this)),
       stateLabel_(new QLabel(this)) {
 
-    setSubtitle(QStringLiteral("OPTICAL INTELLIGENCE CORE"));
+    // Page one is an immersive HAL surface; its identity is already obvious
+    // from the centerpiece, so reclaim the card-title area for the optic.
+    setSubtitle(QString());
+    if (auto* header =
+            findChild<QWidget*>(LegacyTheme::cardHeaderObjectName())) {
+        header->setVisible(false);
+    }
     setAccent(Accent::None);
 
     // HAL owns Page 1. Use the complete XENEON width.
