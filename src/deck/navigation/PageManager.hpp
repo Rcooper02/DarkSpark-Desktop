@@ -54,6 +54,7 @@ protected:
 
 private:
     void navigateTo(int index);
+    void installSwipeFilters(QWidget* page);
 
     QStackedWidget* stack_;
     PageIndicator* indicator_;
@@ -62,7 +63,7 @@ private:
 
     // Touch/mouse swipe tracking on the page area.
     bool swipeActive_ = false;
-    int swipeStartX_ = 0;
+    qreal swipeStartX_ = 0.0;
 };
 
 }  // namespace darkspark::deck::navigation

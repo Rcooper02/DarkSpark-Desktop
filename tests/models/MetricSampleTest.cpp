@@ -3,6 +3,7 @@
 #include "models/SensorDefinition.hpp"
 #include "models/CompanionState.hpp"
 #include "models/GazeTarget.hpp"
+#include "models/ControlAction.hpp"
 #include <cstdio>
 #include <limits>
 #include <optional>
@@ -195,6 +196,14 @@ void test_gaze_target_clamps_to_camera_frame() {
     CHECK((target.clamped() == GazeTarget{1.0, -1.0}));
     CHECK((GazeTarget{0.25, -0.5}.clamped() == GazeTarget{0.25, -0.5}));
 }
+void test_control_action_categories() {
+    using darkspark::models::ControlAction;
+    using darkspark::models::isAudioAction;
+    CHECK(isAudioAction(ControlAction::PlayPause));
+    CHECK(isAudioAction(ControlAction::VolumeUp));
+    CHECK(!isAudioAction(ControlAction::LaunchFirefox));
+    CHECK(!isAudioAction(ControlAction::LockSession));
+}
 }
 int main() {
     test_unavailable_has_no_value();
@@ -218,6 +227,7 @@ int main() {
     test_sensor_definition_minimal();
     test_companion_state_names();
     test_gaze_target_clamps_to_camera_frame();
+    test_control_action_categories();
     if (g_failures == 0) { std::puts("All MetricSample tests passed."); return 0; }
     std::fprintf(stderr, "%d check(s) failed.\n", g_failures); return 1;
 }

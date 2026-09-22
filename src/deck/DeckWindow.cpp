@@ -171,12 +171,11 @@ void DeckWindow::clearCompanionGazeTarget() {
 
 void DeckWindow::reportControlResult(models::ControlAction action, bool success,
                                      const QString& message) {
-    Q_UNUSED(action);
-    if (systemAudioCard_ != nullptr) {
+    if (systemAudioCard_ != nullptr && models::isAudioAction(action)) {
         systemAudioCard_->reportResult(success, message);
     }
     if (controlDeckCard_ != nullptr) {
-        controlDeckCard_->reportResult(success, message);
+        controlDeckCard_->reportResult(action, success, message);
     }
 }
 

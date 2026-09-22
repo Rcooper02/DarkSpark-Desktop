@@ -102,6 +102,10 @@ ControlDeckCard::ControlDeckCard(QWidget* parent)
     for (std::size_t index = 0; index < kMediaButtons.size(); ++index) {
         const ButtonPlan plan = kMediaButtons.at(index);
         auto* button = new GlassActionButton(QString::fromUtf8(plan.label), mediaConsole);
+        // The media console is intentionally denser than the primary key field;
+        // keep its glass controls touch-safe without forcing vertical overflow
+        // on the 720-pixel XENEON canvas.
+        button->setMinimumSize(104, 72);
         connect(button, &QPushButton::clicked, this,
                 [this, action = plan.action]() { emit actionRequested(action); });
         mediaGrid->addWidget(button, static_cast<int>(index / 3U),
@@ -112,10 +116,11 @@ ControlDeckCard::ControlDeckCard(QWidget* parent)
     setContentWidget(content);
 }
 
-void ControlDeckCard::reportResult(bool success, const QString& message) {
+void ControlDeckCard::reportResult(models::ControlAction action, bool success,
+                                   const QString& message) {
     setState(success ? State::Normal : State::Warning);
     setStatusText(message);
-    if (mediaDisplay_ != nullptr) {
+    if (mediaDisplay_ != nullptr && models::isAudioAction(action)) {
         mediaDisplay_->setText(success ? message.toUpper()
                                        : QStringLiteral("CONTROL ERROR\n%1")
                                              .arg(message.toUpper()));

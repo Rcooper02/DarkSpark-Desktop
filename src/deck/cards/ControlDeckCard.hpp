@@ -15,7 +15,8 @@ class ControlDeckCard final : public DashboardCard {
 
 public:
     explicit ControlDeckCard(QWidget* parent = nullptr);
-    void reportResult(bool success, const QString& message);
+    void reportResult(models::ControlAction action, bool success,
+                      const QString& message);
 
 signals:
     void actionRequested(models::ControlAction action);

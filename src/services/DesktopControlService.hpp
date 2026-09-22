@@ -28,8 +28,12 @@ signals:
                          const QString& message);
 
 private:
-    void launch(models::ControlAction action, const QString& program,
-                const QStringList& arguments, const QString& successMessage);
+    void launchDetached(models::ControlAction action, const QString& program,
+                        const QStringList& arguments,
+                        const QString& successMessage);
+    void runCommand(models::ControlAction action, const QString& program,
+                    const QStringList& arguments,
+                    const QString& successMessage);
 };
 
 }  // namespace darkspark::services
