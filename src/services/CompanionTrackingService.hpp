@@ -6,6 +6,7 @@
 
 #include <QObject>
 
+class QProcess;
 class QUdpSocket;
 class QTimer;
 
@@ -16,6 +17,7 @@ class CompanionTrackingService final : public QObject {
 
 public:
     explicit CompanionTrackingService(QObject* parent = nullptr);
+    ~CompanionTrackingService() override;
 
 signals:
     void gazeTargetChanged(models::GazeTarget target);
@@ -23,9 +25,11 @@ signals:
 
 private:
     void receivePendingDatagrams();
+    void startTracker();
 
     QUdpSocket* socket_;
     QTimer* lostTimer_;
+    QProcess* trackerProcess_;
 };
 
 }  // namespace darkspark::services
