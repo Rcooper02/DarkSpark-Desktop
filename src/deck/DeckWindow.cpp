@@ -10,11 +10,11 @@
 #include "models/MetricSample.hpp"
 #include "themes/LegacyTheme.hpp"
 
+#include <QGridLayout>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QPushButton>
 #include <QScreen>
-#include <QVBoxLayout>
 #include <QWindow>
 
 #include <cstring>
@@ -82,28 +82,21 @@ DeckWindow::DeckWindow(QWidget* parent)
     : QWidget(parent), pageManager_(new PageManager(this)) {
     setWindowTitle(QStringLiteral("DarkSpark Desktop — Deck Mode"));
 
-    auto* root = new QVBoxLayout(this);
+    // Page content owns the complete 720-pixel height. The Exit control shares
+    // the same grid cell as the page manager and floats over the otherwise empty
+    // top-right header area instead of consuming a dedicated layout row.
+    auto* root = new QGridLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
+    root->addWidget(pageManager_, 0, 0);
 
-    // Top bar with a visible, touch-sized Exit control. Always present so a
-    // user can leave Deck Mode without a keyboard.
     auto* exitButton = new QPushButton(QStringLiteral("Exit"), this);
     exitButton->setObjectName(LegacyTheme::exitButtonObjectName());
-    // Primary control: preferred 52px touch target height.
-    exitButton->setMinimumSize(LegacyTheme::touchTargetMin() * 2,
-                               LegacyTheme::touchTargetPreferred());
+    exitButton->setFixedSize(LegacyTheme::touchTargetMin() * 2,
+                             LegacyTheme::touchTargetMin());
     exitButton->setCursor(Qt::PointingHandCursor);
     connect(exitButton, &QPushButton::clicked, this, &DeckWindow::exitRequested);
-
-    auto* topBar = new QWidget(this);
-    auto* topBarLayout = new QVBoxLayout(topBar);
-    topBarLayout->setContentsMargins(LegacyTheme::spaceMd(), LegacyTheme::spaceMd(),
-                                     LegacyTheme::spaceMd(), 0);
-    topBarLayout->addWidget(exitButton, 0, Qt::AlignRight);
-
-    root->addWidget(topBar, 0);
-    root->addWidget(pageManager_, 1);
+    root->addWidget(exitButton, 0, 0, Qt::AlignTop | Qt::AlignRight);
 
     buildPages();
 
