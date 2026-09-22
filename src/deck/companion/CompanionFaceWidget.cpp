@@ -136,23 +136,15 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     painter.drawEllipse(outer.adjusted(diameter * 0.035, diameter * 0.035,
                                        -diameter * 0.035, -diameter * 0.035));
 
-    // Crisp light/dark bevel pairs define the machined steps.
+    // One restrained bevel defines a single machined silver bezel.
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(248, 250, 251, 220), 2.5));
-    painter.drawArc(outer.adjusted(diameter * 0.050, diameter * 0.050,
-                                   -diameter * 0.050, -diameter * 0.050),
-                    28 * 16, 180 * 16);
-    painter.setPen(QPen(QColor(24, 27, 30, 240), 3.5));
-    painter.drawArc(outer.adjusted(diameter * 0.050, diameter * 0.050,
-                                   -diameter * 0.050, -diameter * 0.050),
-                    208 * 16, 180 * 16);
-
-    painter.setPen(QPen(QColor(38, 42, 46, 245), 5.0));
-    painter.drawEllipse(outer.adjusted(diameter * 0.092, diameter * 0.092,
-                                       -diameter * 0.092, -diameter * 0.092));
-    painter.setPen(QPen(QColor(232, 236, 238, 205), 2.0));
-    painter.drawEllipse(outer.adjusted(diameter * 0.122, diameter * 0.122,
-                                       -diameter * 0.122, -diameter * 0.122));
+    const QRectF bezelEdge =
+        outer.adjusted(diameter * 0.075, diameter * 0.075,
+                       -diameter * 0.075, -diameter * 0.075);
+    painter.setPen(QPen(QColor(242, 246, 248, 210), 2.5));
+    painter.drawArc(bezelEdge, 28 * 16, 180 * 16);
+    painter.setPen(QPen(QColor(24, 27, 30, 235), 3.0));
+    painter.drawArc(bezelEdge, 208 * 16, 180 * 16);
 
     // -----------------------------------------------------------------
     // BLACK RECESSED OPTICAL CAVITY
@@ -288,55 +280,22 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
 
     painter.setBrush(Qt::NoBrush);
 
-    const qreal ringWidth = std::max<qreal>(1.5, lensDiameter * 0.008);
+    const qreal ringWidth = std::max<qreal>(1.0, lensDiameter * 0.004);
+
+    // Two quiet optical traces add depth without competing with the hot core.
+    painter.setPen(
+        QPen(QColor(255, 54, 52, static_cast<int>(72.0 * intensity)),
+             ringWidth));
+    painter.drawEllipse(
+        lens.adjusted(lensDiameter * 0.19, lensDiameter * 0.19,
+                      -lensDiameter * 0.19, -lensDiameter * 0.19));
 
     painter.setPen(
-        QPen(
-            QColor(
-                255,
-                40,
-                44,
-                static_cast<int>(175.0 * intensity)),
-            ringWidth));
-
+        QPen(QColor(255, 90, 68, static_cast<int>(48.0 * intensity)),
+             ringWidth));
     painter.drawEllipse(
-        lens.adjusted(
-            lensDiameter * 0.14,
-            lensDiameter * 0.14,
-            -lensDiameter * 0.14,
-            -lensDiameter * 0.14));
-
-    painter.setPen(
-        QPen(
-            QColor(
-                255,
-                66,
-                50,
-                static_cast<int>(195.0 * intensity)),
-            ringWidth));
-
-    painter.drawEllipse(
-        lens.adjusted(
-            lensDiameter * 0.28,
-            lensDiameter * 0.28,
-            -lensDiameter * 0.28,
-            -lensDiameter * 0.28));
-
-    painter.setPen(
-        QPen(
-            QColor(
-                255,
-                115,
-                72,
-                static_cast<int>(170.0 * intensity)),
-            ringWidth));
-
-    painter.drawEllipse(
-        lens.adjusted(
-            lensDiameter * 0.39,
-            lensDiameter * 0.39,
-            -lensDiameter * 0.39,
-            -lensDiameter * 0.39));
+        lens.adjusted(lensDiameter * 0.34, lensDiameter * 0.34,
+                      -lensDiameter * 0.34, -lensDiameter * 0.34));
 
     // -----------------------------------------------------------------
     // HOT CENTRAL APERTURE
@@ -382,8 +341,8 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
 
     painter.setPen(
         QPen(
-            QColor(150, 18, 20, 210),
-            2.0));
+            QColor(150, 18, 20, 115),
+            1.25));
 
     painter.drawEllipse(lens);
 
