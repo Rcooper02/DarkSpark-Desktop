@@ -113,6 +113,13 @@ void DeckWindow::buildPages() {
             systemPage_ = page;
         }
         if (std::strcmp(plan.title, kCommandPageTitle) == 0) {
+            // HAL is the page-one identity; hide the redundant "Command"
+            // heading and give the optical core that vertical space.
+            if (auto* header =
+                    page->findChild<QWidget*>(
+                        LegacyTheme::pageHeaderObjectName())) {
+                header->setVisible(false);
+            }
             companionCard_ = new CompanionCard();
             page->addCard(companionCard_);
             connect(companionCard_, &CompanionCard::stateRequested, this,
