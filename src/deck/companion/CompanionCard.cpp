@@ -176,9 +176,9 @@ CompanionCard::CompanionCard(QWidget* parent)
 
     // Make HAL the visual anchor while staying inside the tested 720-pixel
     // console budget recovered by the overlaid Exit control.
-    face_->setMinimumSize(640, 410);
+    face_->setMinimumSize(640, 390);
 
-    center->addWidget(face_, 1, Qt::AlignCenter);
+    center->addWidget(face_, 1, Qt::AlignTop | Qt::AlignHCenter);
 
     // State still drives the animation, but the redundant "HAL // IDLE"
     // caption is intentionally hidden so the optical core owns this space.
