@@ -176,7 +176,7 @@ CompanionCard::CompanionCard(QWidget* parent)
 
     // Make HAL the visual anchor while staying inside the tested 720-pixel
     // console budget recovered by the overlaid Exit control.
-    face_->setMinimumSize(540, 350);
+    face_->setMinimumSize(580, 370);
 
     center->addWidget(face_, 1, Qt::AlignCenter);
 
