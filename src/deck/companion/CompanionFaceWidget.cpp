@@ -193,8 +193,9 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // INNER LENS
     // -----------------------------------------------------------------
 
-    // Compensate for the larger recess so the red optic keeps its scale.
-    const qreal lensDiameter = cavityDiameter * 0.69;
+    // Let the red optic command the recess while retaining a narrow black
+    // isolation border around the lens.
+    const qreal lensDiameter = cavityDiameter * 0.88;
 
     const QPointF opticalCenter(
         center.x() +
