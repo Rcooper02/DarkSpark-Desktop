@@ -176,7 +176,7 @@ CompanionCard::CompanionCard(QWidget* parent)
 
     // Make HAL the visual anchor while staying inside the tested 720-pixel
     // console budget recovered by the overlaid Exit control.
-    face_->setMinimumSize(640, 390);
+    face_->setMinimumSize(720, 440);
 
     center->addWidget(face_, 1, Qt::AlignTop | Qt::AlignHCenter);
 
@@ -240,28 +240,24 @@ CompanionCard::CompanionCard(QWidget* parent)
     motto->setAlignment(Qt::AlignCenter);
     right->addWidget(motto);
 
-    console->addWidget(leftPanel, 0);
-    console->addWidget(centerPanel, 1);
-    console->addWidget(rightPanel, 0);
-
-    root->addLayout(console, 1);
-
     // -----------------------------------------------------------------
-    // BOTTOM: HAL development state controls
+    // SIDE STACKS: keep controls off HAL's vertical axis
     // -----------------------------------------------------------------
 
-    auto* controls = new QGridLayout();
-    controls->setHorizontalSpacing(LegacyTheme::spaceSm());
-    controls->setVerticalSpacing(LegacyTheme::spaceXs());
+    auto* leftControls = new QVBoxLayout();
+    auto* rightControls = new QVBoxLayout();
+    leftControls->setContentsMargins(0, 0, 0, 0);
+    rightControls->setContentsMargins(0, 0, 0, 0);
+    leftControls->setSpacing(LegacyTheme::spaceSm());
+    rightControls->setSpacing(LegacyTheme::spaceSm());
+    leftControls->addStretch(1);
+    rightControls->addStretch(1);
 
     for (std::size_t index = 0; index < kControls.size(); ++index) {
         const StateControl control = kControls.at(index);
-
-        auto* button = new QPushButton(
-            QString::fromUtf8(control.label),
-            content);
-
-        button->setMinimumHeight(LegacyTheme::touchTargetMin());
+        auto* button =
+            new QPushButton(QString::fromUtf8(control.label), content);
+        button->setMinimumSize(132, LegacyTheme::touchTargetMin());
 
         connect(
             button,
@@ -271,13 +267,25 @@ CompanionCard::CompanionCard(QWidget* parent)
                 emit stateRequested(state);
             });
 
-        controls->addWidget(
-            button,
-            0,
-            static_cast<int>(index));
+        if (index < kControls.size() / 2U) {
+            leftControls->addWidget(button);
+        } else {
+            rightControls->addWidget(button);
+        }
     }
 
-    root->addLayout(controls);
+    leftControls->addStretch(1);
+    rightControls->addStretch(1);
+
+    // Symmetrical three-button stacks frame HAL and keep the optical core
+    // centered while allowing it to use the full console height.
+    console->addWidget(leftPanel, 0);
+    console->addLayout(leftControls, 0);
+    console->addWidget(centerPanel, 1);
+    console->addLayout(rightControls, 0);
+    console->addWidget(rightPanel, 0);
+
+    root->addLayout(console, 1);
 
     // -----------------------------------------------------------------
     // Clock refresh
