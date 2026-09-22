@@ -77,10 +77,10 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
 
     const double seconds = animationSeconds();
 
-    const QRectF bounds = rect().adjusted(14, 10, -14, -10);
+    const QRectF bounds = rect().adjusted(6, 4, -6, -4);
 
     const qreal diameter =
-        std::min(bounds.width(), bounds.height()) * 0.96;
+        std::min(bounds.width(), bounds.height()) * 0.98;
 
     const QPointF center = bounds.center();
 
@@ -150,8 +150,8 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // BLACK RECESSED OPTICAL CAVITY
     // -----------------------------------------------------------------
 
-    // A narrow metal bezel: roughly half the previous annulus width.
-    const qreal cavityDiameter = diameter * 0.84;
+    // A very narrow metal bezel leaves the optical assembly dominant.
+    const qreal cavityDiameter = diameter * 0.90;
 
     const QRectF cavity(
         center.x() - cavityDiameter / 2.0,
@@ -193,9 +193,9 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // INNER LENS
     // -----------------------------------------------------------------
 
-    // Let the red optic command the recess while retaining a narrow black
+    // Let the red optic fill the recess while retaining a fine black
     // isolation border around the lens.
-    const qreal lensDiameter = cavityDiameter * 0.88;
+    const qreal lensDiameter = cavityDiameter * 0.94;
 
     const QPointF opticalCenter(
         center.x() +
