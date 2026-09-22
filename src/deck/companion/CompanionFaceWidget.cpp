@@ -150,7 +150,8 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // BLACK RECESSED OPTICAL CAVITY
     // -----------------------------------------------------------------
 
-    const qreal cavityDiameter = diameter * 0.69;
+    // A narrow metal bezel: roughly half the previous annulus width.
+    const qreal cavityDiameter = diameter * 0.84;
 
     const QRectF cavity(
         center.x() - cavityDiameter / 2.0,
@@ -192,7 +193,8 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // INNER LENS
     // -----------------------------------------------------------------
 
-    const qreal lensDiameter = cavityDiameter * 0.84;
+    // Compensate for the larger recess so the red optic keeps its scale.
+    const qreal lensDiameter = cavityDiameter * 0.69;
 
     const QPointF opticalCenter(
         center.x() +
