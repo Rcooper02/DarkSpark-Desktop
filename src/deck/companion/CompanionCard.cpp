@@ -174,9 +174,9 @@ CompanionCard::CompanionCard(QWidget* parent)
     center->setContentsMargins(0, 0, 0, 0);
     center->setSpacing(LegacyTheme::spaceXs());
 
-    // Preserve a substantial optical core without forcing the surrounding
-    // controls and status footer below the 720-pixel display boundary.
-    face_->setMinimumSize(460, 300);
+    // Make HAL the visual anchor while staying inside the tested 720-pixel
+    // console budget recovered by the overlaid Exit control.
+    face_->setMinimumSize(540, 350);
 
     center->addWidget(face_, 1, Qt::AlignCenter);
 
