@@ -115,8 +115,13 @@ target_link_libraries(darkspark-desktop PRIVATE
     Qt6::Network
     darkspark_warnings)
 
+include(GNUInstallDirs)
+
 install(TARGETS darkspark-desktop
-    RUNTIME DESTINATION bin)
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+install(PROGRAMS scripts/hal_face_tracker.py
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/darkspark")
 
 # --- Tests -------------------------------------------------------------------
 # Dependency-free model tests. The model layer has no Qt/UI/service dependency,
