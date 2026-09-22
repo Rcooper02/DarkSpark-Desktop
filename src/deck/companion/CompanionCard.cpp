@@ -176,14 +176,13 @@ CompanionCard::CompanionCard(QWidget* parent)
 
     // Make HAL the visual anchor while staying inside the tested 720-pixel
     // console budget recovered by the overlaid Exit control.
-    face_->setMinimumSize(580, 370);
+    face_->setMinimumSize(640, 410);
 
     center->addWidget(face_, 1, Qt::AlignCenter);
 
-    stateLabel_->setProperty("legacyRole", "companionState");
-    stateLabel_->setAlignment(Qt::AlignCenter);
-
-    center->addWidget(stateLabel_);
+    // State still drives the animation, but the redundant "HAL // IDLE"
+    // caption is intentionally hidden so the optical core owns this space.
+    stateLabel_->setVisible(false);
 
     // -------------------------------------------------------------
     // RIGHT: time + HAL state display
