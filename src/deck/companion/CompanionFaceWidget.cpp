@@ -3,6 +3,7 @@
 
 #include "themes/LegacyTheme.hpp"
 
+#include <QConicalGradient>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
@@ -93,53 +94,71 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
     // OUTER MACHINED METAL HOUSING
     // -----------------------------------------------------------------
 
+    // Radial depth establishes the rolled outer rim.
     QRadialGradient outerMetal(center, diameter * 0.52);
+    outerMetal.setColorAt(0.00, QColor(28, 30, 33));
+    outerMetal.setColorAt(0.61, QColor(18, 20, 23));
+    outerMetal.setColorAt(0.70, QColor(68, 72, 76));
+    outerMetal.setColorAt(0.76, QColor(226, 230, 232));
+    outerMetal.setColorAt(0.81, QColor(92, 97, 101));
+    outerMetal.setColorAt(0.89, QColor(30, 33, 36));
+    outerMetal.setColorAt(0.96, QColor(174, 179, 182));
+    outerMetal.setColorAt(1.00, QColor(20, 22, 24));
 
-    outerMetal.setColorAt(0.00, QColor(22, 24, 26));
-    outerMetal.setColorAt(0.62, QColor(16, 18, 20));
-    outerMetal.setColorAt(0.72, QColor(90, 96, 101));
-    outerMetal.setColorAt(0.77, QColor(210, 214, 216));
-    outerMetal.setColorAt(0.81, QColor(72, 76, 80));
-    outerMetal.setColorAt(0.88, QColor(18, 20, 22));
-    outerMetal.setColorAt(0.95, QColor(105, 110, 114));
-    outerMetal.setColorAt(1.00, QColor(8, 9, 10));
-
-    painter.setPen(QPen(QColor(8, 10, 12), 3.0));
+    painter.setPen(QPen(QColor(5, 7, 9), 3.0));
     painter.setBrush(outerMetal);
     painter.drawEllipse(outer);
 
-    // Metallic bevel rings.
+    // Directional bands make the housing read as turned, reflective metal
+    // instead of flat grey concentric circles.
+    QConicalGradient brushedMetal(center, -32.0);
+    brushedMetal.setColorAt(0.00, QColor(250, 252, 253, 190));
+    brushedMetal.setColorAt(0.08, QColor(76, 81, 85, 150));
+    brushedMetal.setColorAt(0.18, QColor(214, 218, 220, 175));
+    brushedMetal.setColorAt(0.31, QColor(52, 56, 60, 155));
+    brushedMetal.setColorAt(0.45, QColor(238, 241, 242, 180));
+    brushedMetal.setColorAt(0.59, QColor(67, 72, 76, 160));
+    brushedMetal.setColorAt(0.73, QColor(196, 201, 204, 175));
+    brushedMetal.setColorAt(0.87, QColor(43, 47, 51, 165));
+    brushedMetal.setColorAt(1.00, QColor(250, 252, 253, 190));
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(brushedMetal);
+    painter.drawEllipse(outer.adjusted(diameter * 0.018, diameter * 0.018,
+                                       -diameter * 0.018, -diameter * 0.018));
+
+    // A diagonal specular pass gives the metal a clear light source.
+    QLinearGradient metalSheen(outer.topLeft(), outer.bottomRight());
+    metalSheen.setColorAt(0.00, QColor(255, 255, 255, 150));
+    metalSheen.setColorAt(0.34, QColor(255, 255, 255, 22));
+    metalSheen.setColorAt(0.66, QColor(0, 0, 0, 105));
+    metalSheen.setColorAt(1.00, QColor(226, 232, 235, 75));
+    painter.setBrush(metalSheen);
+    painter.drawEllipse(outer.adjusted(diameter * 0.035, diameter * 0.035,
+                                       -diameter * 0.035, -diameter * 0.035));
+
+    // Crisp light/dark bevel pairs define the machined steps.
     painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(248, 250, 251, 220), 2.5));
+    painter.drawArc(outer.adjusted(diameter * 0.050, diameter * 0.050,
+                                   -diameter * 0.050, -diameter * 0.050),
+                    28 * 16, 180 * 16);
+    painter.setPen(QPen(QColor(24, 27, 30, 240), 3.5));
+    painter.drawArc(outer.adjusted(diameter * 0.050, diameter * 0.050,
+                                   -diameter * 0.050, -diameter * 0.050),
+                    208 * 16, 180 * 16);
 
-    painter.setPen(QPen(QColor(215, 220, 222, 180), 2.0));
-    painter.drawEllipse(
-        outer.adjusted(
-            diameter * 0.055,
-            diameter * 0.055,
-            -diameter * 0.055,
-            -diameter * 0.055));
-
-    painter.setPen(QPen(QColor(65, 70, 74, 220), 4.0));
-    painter.drawEllipse(
-        outer.adjusted(
-            diameter * 0.095,
-            diameter * 0.095,
-            -diameter * 0.095,
-            -diameter * 0.095));
-
-    painter.setPen(QPen(QColor(220, 225, 228, 145), 1.5));
-    painter.drawEllipse(
-        outer.adjusted(
-            diameter * 0.125,
-            diameter * 0.125,
-            -diameter * 0.125,
-            -diameter * 0.125));
+    painter.setPen(QPen(QColor(38, 42, 46, 245), 5.0));
+    painter.drawEllipse(outer.adjusted(diameter * 0.092, diameter * 0.092,
+                                       -diameter * 0.092, -diameter * 0.092));
+    painter.setPen(QPen(QColor(232, 236, 238, 205), 2.0));
+    painter.drawEllipse(outer.adjusted(diameter * 0.122, diameter * 0.122,
+                                       -diameter * 0.122, -diameter * 0.122));
 
     // -----------------------------------------------------------------
     // BLACK RECESSED OPTICAL CAVITY
     // -----------------------------------------------------------------
 
-    const qreal cavityDiameter = diameter * 0.72;
+    const qreal cavityDiameter = diameter * 0.69;
 
     const QRectF cavity(
         center.x() - cavityDiameter / 2.0,
