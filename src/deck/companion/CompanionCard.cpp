@@ -88,7 +88,9 @@ CompanionCard::CompanionCard(QWidget* parent)
 
     // HAL owns Page 1. Use the complete XENEON width.
     setSizeRole(Size::Full);
-    setMinimumHeight(500);
+    // Keep the complete card, footer, and page indicator inside the XENEON's
+    // 720-pixel height. The internal layout can still expand on taller screens.
+    setMinimumHeight(440);
 
     setStatusText(
         QStringLiteral("VISION ONLINE // PIXY LINK READY // HAL WATCHING"));
@@ -172,7 +174,9 @@ CompanionCard::CompanionCard(QWidget* parent)
     center->setContentsMargins(0, 0, 0, 0);
     center->setSpacing(LegacyTheme::spaceXs());
 
-    face_->setMinimumSize(520, 390);
+    // Preserve a substantial optical core without forcing the surrounding
+    // controls and status footer below the 720-pixel display boundary.
+    face_->setMinimumSize(460, 300);
 
     center->addWidget(face_, 1, Qt::AlignCenter);
 
