@@ -7,6 +7,8 @@
 #include "models/MetricSample.hpp"
 #include "services/CpuTelemetryService.hpp"
 #include "services/MemoryTelemetryService.hpp"
+#include "services/DesktopControlService.hpp"
+#include "services/CompanionTrackingService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -62,6 +64,8 @@ int Application::run(const LaunchOptions& options) {
     // for the Application lifetime. A Deck window may be created later (or
     // never), so sampling is not tied to any window's existence.
     startTelemetry();
+    startDesktopControls();
+    startCompanionTracking();
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -89,6 +93,8 @@ void Application::startDesktop() {
                     // Wire telemetry immediately after construction and before
                     // the window is shown.
                     connectTelemetryToDeck(deckWindow_.get());
+                    connectDesktopControlsToDeck(deckWindow_.get());
+                    connectCompanionTrackingToDeck(deckWindow_.get());
                 }
                 deckWindow_->showWindowed();
                 deckWindow_->raise();
@@ -123,6 +129,8 @@ void Application::startDeck(int requestedScreenIndex) {
             &QWidget::close);
     // Wire telemetry immediately after construction and before showing.
     connectTelemetryToDeck(deckWindow_.get());
+    connectDesktopControlsToDeck(deckWindow_.get());
+    connectCompanionTrackingToDeck(deckWindow_.get());
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
@@ -142,6 +150,46 @@ void Application::startTelemetry() {
         provider->start();
     }
     qCInfo(lcApp) << "Telemetry started; providers:" << providers_.size();
+}
+
+void Application::startDesktopControls() {
+    if (desktopControlService_ == nullptr) {
+        desktopControlService_ = new services::DesktopControlService(this);
+    }
+}
+
+void Application::startCompanionTracking() {
+    if (companionTrackingService_ == nullptr) {
+        companionTrackingService_ =
+            new services::CompanionTrackingService(this);
+    }
+}
+
+void Application::connectDesktopControlsToDeck(deck::DeckWindow* window) {
+    if (window == nullptr || desktopControlService_ == nullptr) {
+        return;
+    }
+    connect(window, &deck::DeckWindow::controlRequested, desktopControlService_,
+            &services::DesktopControlService::perform);
+    connect(desktopControlService_, &services::DesktopControlService::actionCompleted,
+            window, &deck::DeckWindow::reportControlResult);
+}
+
+void Application::connectCompanionTrackingToDeck(
+    deck::DeckWindow* window) {
+    if (window == nullptr || companionTrackingService_ == nullptr) {
+        return;
+    }
+
+    connect(companionTrackingService_,
+            &services::CompanionTrackingService::gazeTargetChanged,
+            window,
+            &deck::DeckWindow::setCompanionGazeTarget);
+
+    connect(companionTrackingService_,
+            &services::CompanionTrackingService::trackingLost,
+            window,
+            &deck::DeckWindow::clearCompanionGazeTarget);
 }
 
 void Application::connectTelemetryToDeck(deck::DeckWindow* window) {

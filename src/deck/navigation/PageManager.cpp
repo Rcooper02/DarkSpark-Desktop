@@ -6,6 +6,7 @@
 #include "deck/pages/DeckPage.hpp"
 #include "themes/LegacyTheme.hpp"
 
+#include <QAbstractButton>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QStackedWidget>
@@ -18,7 +19,7 @@ using themes::LegacyTheme;
 namespace {
 // Minimum horizontal travel (device pixels) to count as a swipe rather than a
 // tap. Kept generous for touch.
-constexpr int kSwipeThreshold = 60;
+constexpr qreal kSwipeThreshold = 60.0;
 }  // namespace
 
 PageManager::PageManager(QWidget* parent)
@@ -50,11 +51,23 @@ void PageManager::addPage(pages::DeckPage* page) {
         return;
     }
     stack_->addWidget(page);  // reparents
+    installSwipeFilters(page);
     if (stack_->count() == 1) {
         activeIndex_ = 0;
         stack_->setCurrentIndex(0);
     }
     indicator_->setState(stack_->count(), activeIndex_);
+}
+
+void PageManager::installSwipeFilters(QWidget* page) {
+    if (page == nullptr) {
+        return;
+    }
+    page->installEventFilter(this);
+    const QList<QWidget*> descendants = page->findChildren<QWidget*>();
+    for (QWidget* child : descendants) {
+        child->installEventFilter(this);
+    }
 }
 
 int PageManager::pageCount() const { return stack_->count(); }
@@ -86,24 +99,38 @@ void PageManager::previousPage() {
 }
 
 bool PageManager::eventFilter(QObject* watched, QEvent* event) {
-    if (watched == stack_) {
+    auto* watchedWidget = qobject_cast<QWidget*>(watched);
+    const bool belongsToPageArea = watched == stack_
+                                   || (watchedWidget != nullptr
+                                       && stack_->isAncestorOf(watchedWidget));
+    if (belongsToPageArea) {
         switch (event->type()) {
         case QEvent::MouseButtonPress: {
             auto* me = static_cast<QMouseEvent*>(event);
+            if (me->button() != Qt::LeftButton) {
+                return false;
+            }
             swipeActive_ = true;
-            swipeStartX_ = me->pos().x();
+            swipeStartX_ = me->globalPosition().x();
             return false;  // let children still receive input
         }
         case QEvent::MouseButtonRelease: {
-            if (swipeActive_) {
+            if (swipeActive_ && static_cast<QMouseEvent*>(event)->button()
+                                    == Qt::LeftButton) {
                 auto* me = static_cast<QMouseEvent*>(event);
-                const int delta = me->pos().x() - swipeStartX_;
+                const qreal delta = me->globalPosition().x() - swipeStartX_;
                 swipeActive_ = false;
                 if (delta <= -kSwipeThreshold) {
+                    if (auto* button = qobject_cast<QAbstractButton*>(watched)) {
+                        button->setDown(false);
+                    }
                     nextPage();
                     return true;
                 }
                 if (delta >= kSwipeThreshold) {
+                    if (auto* button = qobject_cast<QAbstractButton*>(watched)) {
+                        button->setDown(false);
+                    }
                     previousPage();
                     return true;
                 }

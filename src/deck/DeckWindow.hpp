@@ -14,13 +14,23 @@ class DeckPage;
 }
 namespace darkspark::models {
 class MetricSample;
+enum class CompanionState;
+struct GazeTarget;
+enum class ControlAction;
+}
+namespace darkspark::deck::companion {
+class CompanionCard;
+}
+namespace darkspark::deck::cards {
+class AudioControlCard;
+class ControlDeckCard;
 }
 
 namespace darkspark::deck {
 
 /// The Deck Mode presentation window.
 ///
-/// DeckWindow hosts the PageManager and the five placeholder pages. In Deck
+/// DeckWindow hosts the PageManager and the four core/reserved pages. In Deck
 /// Mode it is frameless and shown fullscreen on a chosen screen, sized for the
 /// 2560x720 target but functional at other sizes. It always provides a visible
 /// Exit control and honors the Escape key so a user can never be trapped in
@@ -50,12 +60,20 @@ public:
     /// The window does not expose its pages or cards; routing is internal. A
     /// sample for a metric this window does not present is ignored safely.
     void receiveTelemetry(const models::MetricSample& sample);
+    /// Update the Companion presentation. Future services can use this seam
+    /// without depending on the concrete Companion card.
+    void setCompanionState(models::CompanionState state);
+    void setCompanionGazeTarget(models::GazeTarget target);
+    void clearCompanionGazeTarget();
+    void reportControlResult(models::ControlAction action, bool success,
+                             const QString& message);
 
 signals:
     /// Emitted when the user requests to leave Deck Mode (Exit button or
     /// Escape). The owner decides what "leaving" means (close, or return to a
     /// desktop window).
     void exitRequested();
+    void controlRequested(models::ControlAction action);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -68,6 +86,9 @@ private:
     /// while building pages. The pages themselves are owned by the PageManager's
     /// stack. Never exposed publicly; may be null if that page is absent.
     pages::DeckPage* systemPage_ = nullptr;
+    companion::CompanionCard* companionCard_ = nullptr;
+    cards::AudioControlCard* systemAudioCard_ = nullptr;
+    cards::ControlDeckCard* controlDeckCard_ = nullptr;
 };
 
 }  // namespace darkspark::deck

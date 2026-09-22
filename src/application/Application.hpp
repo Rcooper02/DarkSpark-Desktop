@@ -20,6 +20,10 @@ class DeckWindow;
 namespace darkspark::interfaces {
 class ITelemetryProvider;
 }
+namespace darkspark::services {
+class DesktopControlService;
+class CompanionTrackingService;
+}
 
 namespace darkspark::application {
 
@@ -80,6 +84,8 @@ private:
     /// sampling. Called once from run() before mode selection, so telemetry is
     /// available immediately whenever a Deck window appears.
     void startTelemetry();
+    void startDesktopControls();
+    void startCompanionTracking();
 
     /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
@@ -88,6 +94,8 @@ private:
     /// is identical. The window is used as the connection context object, so
     /// connections are removed automatically if the window is destroyed.
     void connectTelemetryToDeck(deck::DeckWindow* window);
+    void connectDesktopControlsToDeck(deck::DeckWindow* window);
+    void connectCompanionTrackingToDeck(deck::DeckWindow* window);
 
     QApplication& qtApp_;
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
@@ -101,6 +109,8 @@ private:
     /// than one MetricId, and the UI routes on the sample's identity rather than
     /// on which provider produced it.
     QVector<interfaces::ITelemetryProvider*> providers_;
+    services::DesktopControlService* desktopControlService_ = nullptr;
+    services::CompanionTrackingService* companionTrackingService_ = nullptr;
 };
 
 }  // namespace darkspark::application

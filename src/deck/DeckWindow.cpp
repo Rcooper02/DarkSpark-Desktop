@@ -2,16 +2,19 @@
 #include "deck/DeckWindow.hpp"
 
 #include "deck/cards/DashboardCard.hpp"
+#include "deck/cards/AudioControlCard.hpp"
+#include "deck/cards/ControlDeckCard.hpp"
+#include "deck/companion/CompanionCard.hpp"
 #include "deck/navigation/PageManager.hpp"
 #include "deck/pages/DeckPage.hpp"
 #include "models/MetricSample.hpp"
 #include "themes/LegacyTheme.hpp"
 
+#include <QGridLayout>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QPushButton>
 #include <QScreen>
-#include <QVBoxLayout>
 #include <QWindow>
 
 #include <cstring>
@@ -20,6 +23,9 @@
 namespace darkspark::deck {
 
 using cards::DashboardCard;
+using cards::AudioControlCard;
+using cards::ControlDeckCard;
+using companion::CompanionCard;
 using navigation::PageManager;
 using pages::DeckPage;
 using themes::LegacyTheme;
@@ -50,30 +56,25 @@ using St = DashboardCard::State;
 /// Title of the page that presents system telemetry. Must match the entry in
 /// kPagePlans below.
 constexpr const char* kSystemPageTitle = "System";
+constexpr const char* kCommandPageTitle = "Command";
+constexpr const char* kControlDeckPageTitle = "Control Deck";
 
 const std::initializer_list<PagePlan> kPagePlans = {
-    {"Command",
-     {{"Quick Actions", "Common controls", S::Wide, A::Cyan, St::Normal},
-      {"Recent Activity", "Nothing yet", S::Medium, A::None, St::Empty},
-      {"System Summary", "At a glance", S::Large, A::Purple, St::Normal}}},
+    // Page 1 is intentionally Companion-first. The XENEON EDGE is only
+    // 720 pixels tall, so HAL owns this page instead of sharing it with
+    // placeholder dashboard cards.
+    {"Command", {}},
     {"System",
      {{"CPU", "Utilization", S::Medium, A::Cyan, St::Normal},
       {"Memory", "In use", S::Medium, A::Cyan, St::Normal},
       {"GPU", "Utilization", S::Medium, A::Purple, St::Normal},
       {"Storage", "Capacity", S::Medium, A::None, St::Normal},
       {"Network", "Throughput", S::Medium, A::None, St::Unavailable}}},
-    {"Media",
-     {{"Now Playing", "Nothing playing", S::Large, A::Cyan, St::Empty},
-      {"Playback Controls", "Transport", S::Wide, A::None, St::Disabled},
-      {"Output Device", "Default", S::Medium, A::Purple, St::Normal}}},
-    {"Communications",
-     {{"Chat", "No conversations", S::Large, A::Cyan, St::Empty},
-      {"Notifications", "None", S::Medium, A::None, St::Normal},
-      {"Presence", "Status", S::Medium, A::Purple, St::Warning}}},
-    {"Home",
-     {{"Homepage", "Dashboard", S::Wide, A::Cyan, St::Loading},
-      {"Weather", "Not configured", S::Medium, A::None, St::Unavailable},
-      {"Calendar", "No events", S::Large, A::Purple, St::Empty}}},
+    {"Control Deck", {}},
+    {"Expansion",
+     {{"Future Module", "Reserved fourth screen", S::Wide, A::Purple, St::Empty},
+      {"Not Configured", "Ready when its purpose is defined", S::Large,
+       A::None, St::Unavailable}}},
 };
 }  // namespace
 
@@ -81,28 +82,21 @@ DeckWindow::DeckWindow(QWidget* parent)
     : QWidget(parent), pageManager_(new PageManager(this)) {
     setWindowTitle(QStringLiteral("DarkSpark Desktop — Deck Mode"));
 
-    auto* root = new QVBoxLayout(this);
+    // Page content owns the complete 720-pixel height. The Exit control shares
+    // the same grid cell as the page manager and floats over the otherwise empty
+    // top-right header area instead of consuming a dedicated layout row.
+    auto* root = new QGridLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
+    root->addWidget(pageManager_, 0, 0);
 
-    // Top bar with a visible, touch-sized Exit control. Always present so a
-    // user can leave Deck Mode without a keyboard.
     auto* exitButton = new QPushButton(QStringLiteral("Exit"), this);
     exitButton->setObjectName(LegacyTheme::exitButtonObjectName());
-    // Primary control: preferred 52px touch target height.
-    exitButton->setMinimumSize(LegacyTheme::touchTargetMin() * 2,
-                               LegacyTheme::touchTargetPreferred());
+    exitButton->setFixedSize(LegacyTheme::touchTargetMin() * 2,
+                             LegacyTheme::touchTargetMin());
     exitButton->setCursor(Qt::PointingHandCursor);
     connect(exitButton, &QPushButton::clicked, this, &DeckWindow::exitRequested);
-
-    auto* topBar = new QWidget(this);
-    auto* topBarLayout = new QVBoxLayout(topBar);
-    topBarLayout->setContentsMargins(LegacyTheme::spaceMd(), LegacyTheme::spaceMd(),
-                                     LegacyTheme::spaceMd(), 0);
-    topBarLayout->addWidget(exitButton, 0, Qt::AlignRight);
-
-    root->addWidget(topBar, 0);
-    root->addWidget(pageManager_, 1);
+    root->addWidget(exitButton, 0, 0, Qt::AlignTop | Qt::AlignRight);
 
     buildPages();
 
@@ -118,6 +112,31 @@ void DeckWindow::buildPages() {
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
             systemPage_ = page;
         }
+        if (std::strcmp(plan.title, kCommandPageTitle) == 0) {
+            // HAL is the page-one identity; hide the redundant "Command"
+            // heading and give the optical core that vertical space.
+            if (auto* header =
+                    page->findChild<QWidget*>(
+                        LegacyTheme::pageHeaderObjectName())) {
+                header->setVisible(false);
+            }
+            companionCard_ = new CompanionCard();
+            page->addCard(companionCard_);
+            connect(companionCard_, &CompanionCard::stateRequested, this,
+                    &DeckWindow::setCompanionState);
+        }
+        if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
+            systemAudioCard_ = new AudioControlCard();
+            page->addCard(systemAudioCard_);
+            connect(systemAudioCard_, &AudioControlCard::actionRequested, this,
+                    &DeckWindow::controlRequested);
+        }
+        if (std::strcmp(plan.title, kControlDeckPageTitle) == 0) {
+            controlDeckCard_ = new ControlDeckCard();
+            page->addCard(controlDeckCard_);
+            connect(controlDeckCard_, &ControlDeckCard::actionRequested, this,
+                    &DeckWindow::controlRequested);
+        }
         for (const auto& cardPlan : plan.cards) {
             auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
             if (cardPlan.subtitle != nullptr && cardPlan.subtitle[0] != '\0') {
@@ -129,6 +148,34 @@ void DeckWindow::buildPages() {
             page->addCard(card);
         }
         pageManager_->addPage(page);
+    }
+}
+
+void DeckWindow::setCompanionState(models::CompanionState state) {
+    if (companionCard_ != nullptr) {
+        companionCard_->setCompanionState(state);
+    }
+}
+
+void DeckWindow::setCompanionGazeTarget(models::GazeTarget target) {
+    if (companionCard_ != nullptr) {
+        companionCard_->setGazeTarget(target);
+    }
+}
+
+void DeckWindow::clearCompanionGazeTarget() {
+    if (companionCard_ != nullptr) {
+        companionCard_->clearGazeTarget();
+    }
+}
+
+void DeckWindow::reportControlResult(models::ControlAction action, bool success,
+                                     const QString& message) {
+    if (systemAudioCard_ != nullptr && models::isAudioAction(action)) {
+        systemAudioCard_->reportResult(success, message);
+    }
+    if (controlDeckCard_ != nullptr) {
+        controlDeckCard_->reportResult(action, success, message);
     }
 }
 

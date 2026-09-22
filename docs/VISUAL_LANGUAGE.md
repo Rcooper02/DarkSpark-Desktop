@@ -42,6 +42,17 @@ Every visual element must communicate one or more of the following:
 
 Decoration without purpose should be avoided.
 
+### Control Deck geometry
+
+The XENEON EDGE target canvas is 2560 × 720. The Control Deck page reserves a
+fixed right-side media console and uses the remaining width for a 5 × 3 key
+field. Keys follow the square visual language and regular spacing of dedicated
+LCD macro decks while remaining large enough for direct touch.
+
+Control keys use a dark glass construction with a recessed shadow, illuminated
+edge, upper-face reflection, and visible downward travel while pressed. The
+effect communicates touch state and depth; it is not decoration alone.
+
 The interface should look advanced because it is consistent and intentional,
 not because every surface glows.
 

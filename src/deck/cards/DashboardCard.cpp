@@ -108,6 +108,8 @@ DashboardCard::DashboardCard(QString title, QWidget* parent)
       subtitleLabel_(new QLabel(QString(), this)),
       valueLabel_(new QLabel(QString(), this)),
       placeholderLabel_(new QLabel(QString(), this)),
+      defaultContent_(new QWidget(this)),
+      contentLayout_(new QVBoxLayout()),
       statusLabel_(new QLabel(QString(), this)),
       divider_(new QFrame(this)), indicator_(new StatusIndicator(this)),
       glow_(new QGraphicsDropShadowEffect(this)) {
@@ -154,12 +156,17 @@ DashboardCard::DashboardCard(QString title, QWidget* parent)
     // --- Content region: placeholder text, occupies meaningful space --------
     auto* content = new QWidget(this);
     content->setObjectName(LegacyTheme::cardContentObjectName());
-    auto* contentCol = new QVBoxLayout(content);
-    contentCol->setContentsMargins(0, 0, 0, 0);
-    contentCol->setSpacing(LegacyTheme::spaceXs());
-    contentCol->addWidget(valueLabel_);
-    contentCol->addWidget(placeholderLabel_);
-    contentCol->addStretch(1);
+    contentLayout_->setContentsMargins(0, 0, 0, 0);
+    contentLayout_->setSpacing(LegacyTheme::spaceXs());
+    content->setLayout(contentLayout_);
+
+    auto* defaultContentLayout = new QVBoxLayout(defaultContent_);
+    defaultContentLayout->setContentsMargins(0, 0, 0, 0);
+    defaultContentLayout->setSpacing(LegacyTheme::spaceXs());
+    defaultContentLayout->addWidget(valueLabel_);
+    defaultContentLayout->addWidget(placeholderLabel_);
+    defaultContentLayout->addStretch(1);
+    contentLayout_->addWidget(defaultContent_);
 
     // --- Card root: header, subtitle, divider, content, footer --------------
     auto* root = new QVBoxLayout(this);
@@ -205,6 +212,23 @@ void DashboardCard::setValueText(const QString& text) {
     const bool hasValue = !text.isEmpty();
     valueLabel_->setVisible(hasValue);
     placeholderLabel_->setVisible(!hasValue);
+}
+
+void DashboardCard::setContentWidget(QWidget* widget) {
+    if (customContent_ == widget) {
+        return;
+    }
+    if (customContent_ != nullptr) {
+        contentLayout_->removeWidget(customContent_);
+        customContent_->deleteLater();
+        customContent_ = nullptr;
+    }
+    defaultContent_->setVisible(widget == nullptr);
+    if (widget != nullptr) {
+        customContent_ = widget;
+        customContent_->setParent(contentLayout_->parentWidget());
+        contentLayout_->addWidget(customContent_);
+    }
 }
 
 QString DashboardCard::title() const { return titleLabel_->text(); }

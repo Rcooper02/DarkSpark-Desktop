@@ -6,6 +6,7 @@
 #include <QString>
 
 class QLabel;
+class QWidget;
 class QVBoxLayout;
 class QGraphicsDropShadowEffect;
 
@@ -61,7 +62,7 @@ public:
 
     /// Presentation size role. A layout hint only; DeckPage interprets it. Not
     /// a layout engine, not user-resizable, not persisted.
-    enum class Size { Small, Medium, Large, Wide };
+    enum class Size { Small, Medium, Large, Wide, Full };
 
     explicit DashboardCard(QString title, QWidget* parent = nullptr);
 
@@ -79,6 +80,11 @@ public:
     /// placeholder; a non-empty string shows the value and hides the
     /// placeholder.
     void setValueText(const QString& text);
+    /// Replace the default value/placeholder region with a custom presentation
+    /// widget. The card takes ownership. Passing nullptr restores the default
+    /// content. Header, subtitle, footer, state, focus, and sizing remain the
+    /// responsibility of DashboardCard.
+    void setContentWidget(QWidget* widget);
 
     [[nodiscard]] QString title() const;
     [[nodiscard]] QString subtitle() const;
@@ -124,6 +130,9 @@ private:
     QLabel* subtitleLabel_;
     QLabel* valueLabel_;
     QLabel* placeholderLabel_;
+    QWidget* defaultContent_;
+    QWidget* customContent_ = nullptr;
+    QVBoxLayout* contentLayout_;
     QLabel* statusLabel_;
     QFrame* divider_;
     StatusIndicator* indicator_;
