@@ -101,7 +101,9 @@ void CompanionTrackingService::startTracker() {
     }
 
     const QString python =
-        qEnvironmentVariable("DARKSPARK_PYTHON", QStringLiteral("python3"));
+        qEnvironmentVariable(
+            "DARKSPARK_PYTHON",
+            QStringLiteral("/usr/bin/python3"));
     const QString camera =
         qEnvironmentVariable("DARKSPARK_CAMERA_DEVICE",
                              QStringLiteral("/dev/video0"));

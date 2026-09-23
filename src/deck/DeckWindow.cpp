@@ -122,8 +122,21 @@ void DeckWindow::buildPages() {
             }
             companionCard_ = new CompanionCard();
             page->addCard(companionCard_);
-            connect(companionCard_, &CompanionCard::stateRequested, this,
-                    &DeckWindow::setCompanionState);
+            connect(
+                companionCard_,
+                &CompanionCard::stateRequested,
+                this,
+                [this](models::CompanionState state) {
+                    if (state == models::CompanionState::Speaking) {
+                        emit companionSpeechRequested(
+                            QStringLiteral(
+                                "Good evening, Star Badger. "
+                                "I am fully operational."));
+                        return;
+                    }
+
+                    setCompanionState(state);
+                });
         }
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
             systemAudioCard_ = new AudioControlCard();

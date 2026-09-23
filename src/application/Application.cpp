@@ -9,6 +9,8 @@
 #include "services/MemoryTelemetryService.hpp"
 #include "services/DesktopControlService.hpp"
 #include "services/CompanionTrackingService.hpp"
+#include "services/CompanionSpeechService.hpp"
+#include "models/CompanionState.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -66,6 +68,7 @@ int Application::run(const LaunchOptions& options) {
     startTelemetry();
     startDesktopControls();
     startCompanionTracking();
+    startCompanionSpeech();
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -95,6 +98,7 @@ void Application::startDesktop() {
                     connectTelemetryToDeck(deckWindow_.get());
                     connectDesktopControlsToDeck(deckWindow_.get());
                     connectCompanionTrackingToDeck(deckWindow_.get());
+    connectCompanionSpeechToDeck(deckWindow_.get());
                 }
                 deckWindow_->showWindowed();
                 deckWindow_->raise();
@@ -131,6 +135,7 @@ void Application::startDeck(int requestedScreenIndex) {
     connectTelemetryToDeck(deckWindow_.get());
     connectDesktopControlsToDeck(deckWindow_.get());
     connectCompanionTrackingToDeck(deckWindow_.get());
+    connectCompanionSpeechToDeck(deckWindow_.get());
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
@@ -165,6 +170,13 @@ void Application::startCompanionTracking() {
     }
 }
 
+void Application::startCompanionSpeech() {
+    if (companionSpeechService_ == nullptr) {
+        companionSpeechService_ =
+            new services::CompanionSpeechService(this);
+    }
+}
+
 void Application::connectDesktopControlsToDeck(deck::DeckWindow* window) {
     if (window == nullptr || desktopControlService_ == nullptr) {
         return;
@@ -190,6 +202,39 @@ void Application::connectCompanionTrackingToDeck(
             &services::CompanionTrackingService::trackingLost,
             window,
             &deck::DeckWindow::clearCompanionGazeTarget);
+}
+
+void Application::connectCompanionSpeechToDeck(
+    deck::DeckWindow* window) {
+    if (window == nullptr || companionSpeechService_ == nullptr) {
+        return;
+    }
+
+    connect(window,
+            &deck::DeckWindow::companionSpeechRequested,
+            companionSpeechService_,
+            &services::CompanionSpeechService::speak);
+
+    connect(companionSpeechService_,
+            &services::CompanionSpeechService::speechStarted,
+            window,
+            [window]() {
+                window->setCompanionState(models::CompanionState::Speaking);
+            });
+
+    connect(companionSpeechService_,
+            &services::CompanionSpeechService::speechFinished,
+            window,
+            [window]() {
+                window->setCompanionState(models::CompanionState::Idle);
+            });
+
+    connect(companionSpeechService_,
+            &services::CompanionSpeechService::speechFailed,
+            window,
+            [window](const QString&) {
+                window->setCompanionState(models::CompanionState::Alert);
+            });
 }
 
 void Application::connectTelemetryToDeck(deck::DeckWindow* window) {

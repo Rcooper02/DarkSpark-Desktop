@@ -77,6 +77,8 @@ qt_add_executable(darkspark-desktop
     src/services/DesktopControlService.hpp
     src/services/CompanionTrackingService.cpp
     src/services/CompanionTrackingService.hpp
+    src/services/CompanionSpeechService.cpp
+    src/services/CompanionSpeechService.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp

@@ -48,7 +48,7 @@ CompanionState CompanionFaceWidget::companionState() const {
 void CompanionFaceWidget::setGazeTarget(models::GazeTarget target) {
     target = target.clamped();
 
-    constexpr double kDeadZone = 0.035;
+    constexpr double kDeadZone = 0.060;
 
     if (hasGazeTarget_ &&
         std::abs(target.horizontal - gazeTarget_.horizontal) < kDeadZone &&
@@ -181,7 +181,7 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
                   std::sin(seconds * 0.48) * 0.34,
                   std::sin(seconds * 0.31) * 0.16};
 
-    constexpr double kGazeEase = 0.045;
+    constexpr double kGazeEase = 0.018;
 
     renderedGaze_.horizontal +=
         (desiredGaze.horizontal - renderedGaze_.horizontal) * kGazeEase;
@@ -199,9 +199,9 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
 
     const QPointF opticalCenter(
         center.x() +
-            renderedGaze_.horizontal * lensDiameter * 0.12,
+            renderedGaze_.horizontal * lensDiameter * 0.085,
         center.y() +
-            renderedGaze_.vertical * lensDiameter * 0.09);
+            renderedGaze_.vertical * lensDiameter * 0.065);
 
     const QRectF lens(
         center.x() - lensDiameter / 2.0,
