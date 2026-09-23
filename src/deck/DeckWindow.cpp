@@ -135,6 +135,11 @@ void DeckWindow::buildPages() {
                         return;
                     }
 
+                    if (state == models::CompanionState::Listening) {
+                        emit companionListenRequested();
+                        return;
+                    }
+
                     setCompanionState(state);
                 });
         }

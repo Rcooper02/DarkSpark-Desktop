@@ -10,6 +10,7 @@
 #include "services/DesktopControlService.hpp"
 #include "services/CompanionTrackingService.hpp"
 #include "services/CompanionSpeechService.hpp"
+#include "services/CompanionListeningService.hpp"
 #include "models/CompanionState.hpp"
 #include "themes/LegacyTheme.hpp"
 
@@ -69,6 +70,7 @@ int Application::run(const LaunchOptions& options) {
     startDesktopControls();
     startCompanionTracking();
     startCompanionSpeech();
+    startCompanionListening();
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -98,7 +100,8 @@ void Application::startDesktop() {
                     connectTelemetryToDeck(deckWindow_.get());
                     connectDesktopControlsToDeck(deckWindow_.get());
                     connectCompanionTrackingToDeck(deckWindow_.get());
-    connectCompanionSpeechToDeck(deckWindow_.get());
+                    connectCompanionSpeechToDeck(deckWindow_.get());
+                    connectCompanionListeningToDeck(deckWindow_.get());
                 }
                 deckWindow_->showWindowed();
                 deckWindow_->raise();
@@ -136,6 +139,7 @@ void Application::startDeck(int requestedScreenIndex) {
     connectDesktopControlsToDeck(deckWindow_.get());
     connectCompanionTrackingToDeck(deckWindow_.get());
     connectCompanionSpeechToDeck(deckWindow_.get());
+    connectCompanionListeningToDeck(deckWindow_.get());
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
@@ -174,6 +178,13 @@ void Application::startCompanionSpeech() {
     if (companionSpeechService_ == nullptr) {
         companionSpeechService_ =
             new services::CompanionSpeechService(this);
+    }
+}
+
+void Application::startCompanionListening() {
+    if (companionListeningService_ == nullptr) {
+        companionListeningService_ =
+            new services::CompanionListeningService(this);
     }
 }
 
@@ -234,6 +245,50 @@ void Application::connectCompanionSpeechToDeck(
             window,
             [window](const QString&) {
                 window->setCompanionState(models::CompanionState::Alert);
+            });
+}
+
+void Application::connectCompanionListeningToDeck(
+    deck::DeckWindow* window) {
+    if (window == nullptr || companionListeningService_ == nullptr) {
+        return;
+    }
+
+    connect(window,
+            &deck::DeckWindow::companionListenRequested,
+            companionListeningService_,
+            &services::CompanionListeningService::listen);
+
+    connect(companionListeningService_,
+            &services::CompanionListeningService::listeningStarted,
+            window,
+            [window]() {
+                window->setCompanionState(
+                    models::CompanionState::Listening);
+            });
+
+    connect(companionListeningService_,
+            &services::CompanionListeningService::transcriptionStarted,
+            window,
+            [window]() {
+                window->setCompanionState(
+                    models::CompanionState::Thinking);
+            });
+
+    connect(companionListeningService_,
+            &services::CompanionListeningService::transcriptionReady,
+            window,
+            [window](const QString&) {
+                window->setCompanionState(
+                    models::CompanionState::Idle);
+            });
+
+    connect(companionListeningService_,
+            &services::CompanionListeningService::listeningFailed,
+            window,
+            [window](const QString&) {
+                window->setCompanionState(
+                    models::CompanionState::Alert);
             });
 }
 

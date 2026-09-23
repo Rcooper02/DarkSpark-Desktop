@@ -1,3 +1,6 @@
 
 # Generated build output
 /build/
+
+# Local Python virtual environments
+.venv-whisper/

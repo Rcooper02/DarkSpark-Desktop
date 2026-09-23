@@ -24,6 +24,7 @@ namespace darkspark::services {
 class DesktopControlService;
 class CompanionTrackingService;
 class CompanionSpeechService;
+class CompanionListeningService;
 }
 
 namespace darkspark::application {
@@ -88,6 +89,7 @@ private:
     void startDesktopControls();
     void startCompanionTracking();
     void startCompanionSpeech();
+    void startCompanionListening();
 
     /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
@@ -99,6 +101,7 @@ private:
     void connectDesktopControlsToDeck(deck::DeckWindow* window);
     void connectCompanionTrackingToDeck(deck::DeckWindow* window);
     void connectCompanionSpeechToDeck(deck::DeckWindow* window);
+    void connectCompanionListeningToDeck(deck::DeckWindow* window);
 
     QApplication& qtApp_;
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
@@ -115,6 +118,7 @@ private:
     services::DesktopControlService* desktopControlService_ = nullptr;
     services::CompanionTrackingService* companionTrackingService_ = nullptr;
     services::CompanionSpeechService* companionSpeechService_ = nullptr;
+    services::CompanionListeningService* companionListeningService_ = nullptr;
 };
 
 }  // namespace darkspark::application

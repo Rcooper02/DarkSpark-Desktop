@@ -209,18 +209,48 @@ void CompanionFaceWidget::paintEvent(QPaintEvent* event) {
         lensDiameter,
         lensDiameter);
 
-    const double pulseSpeed =
-        state_ == CompanionState::Listening ? 4.5 : 1.6;
+    // HAL's optical intensity communicates his current interaction state.
+    // Keep the effect entirely inside the existing lens: no extra rings,
+    // overlays, or graphics are needed.
+    double intensity = 0.88 + std::sin(seconds * 1.6) * 0.075;
 
-    const double pulse =
-        0.88 + std::sin(seconds * pulseSpeed) * 0.075;
+    switch (state_) {
+    case CompanionState::Dormant:
+        intensity = 0.18;
+        break;
 
-    double intensity =
-        state_ == CompanionState::Dormant ? 0.18 : pulse;
+    case CompanionState::Idle:
+        // Slow, subtle breathing.
+        intensity = 0.88 + std::sin(seconds * 1.6) * 0.075;
+        break;
 
-    if (state_ == CompanionState::Alert) {
+    case CompanionState::Listening:
+        // Strong rhythmic response while the microphone is open.
+        intensity = 0.78 +
+                    (0.5 + 0.5 * std::sin(seconds * 5.0)) * 0.22;
+        break;
+
+    case CompanionState::Thinking: {
+        // Deliberate computational pulse: two harmonics create a visibly
+        // different cadence from listening without changing HAL's geometry.
+        const double primary =
+            0.5 + 0.5 * std::sin(seconds * 2.3);
+        const double secondary =
+            0.5 + 0.5 * std::sin(seconds * 4.6);
+        intensity = 0.72 + primary * 0.18 + secondary * 0.10;
+        break;
+    }
+
+    case CompanionState::Speaking:
+        // Active but calmer than the microphone/listening pulse.
+        intensity = 0.80 +
+                    (0.5 + 0.5 * std::sin(seconds * 3.4)) * 0.20;
+        break;
+
+    case CompanionState::Alert:
         intensity =
             0.90 + std::abs(std::sin(seconds * 7.0)) * 0.10;
+        break;
     }
 
     QRadialGradient lensBody(opticalCenter, lensDiameter * 0.55);

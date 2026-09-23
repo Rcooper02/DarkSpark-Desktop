@@ -75,6 +75,7 @@ signals:
     void exitRequested();
     void controlRequested(models::ControlAction action);
     void companionSpeechRequested(const QString& text);
+    void companionListenRequested();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
