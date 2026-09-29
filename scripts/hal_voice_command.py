@@ -21,20 +21,32 @@ PROMPT = (
 
 
 def normalize(transcript: str) -> str:
+    if transcript.strip().upper() in {"[BLANK_AUDIO]", "[SILENCE]", ""}:
+        return ""
     text = transcript.lower().replace("’", "'")
     text = re.sub(r"[^a-z0-9' ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     # Whisper frequently hears the wake word HAL as “how”. Only discard these
     # words at the beginning; they never become executable input themselves.
-    text = re.sub(r"^(?:hey |hello )?(?:hal|hall|how)\b[ ,]*", "", text).strip()
+    text = re.sub(
+        r"^(?:hey |hello )?(?:hal|hall|how|hell)\b[ ,]*", "", text
+    ).strip()
     return text
 
 
 def classify(text: str) -> tuple[str, str]:
+    if not text:
+        return "", "I heard only silence."
     # Specific negative forms must be checked before the substring “mute”.
-    if re.search(r"\b(?:unmute|un mute|restore)(?: the)? (?:audio|sound)\b", text):
+    if re.search(
+        r"\b(?:unmute|un mute|restore)(?: the)? (?:audio|sound|volume)\b", text
+    ):
         return "unmute", "Audio restored, Starbadger."
-    if re.search(r"\bmute(?: the)? (?:audio|sound)\b|\bsilence(?: the)? (?:audio|sound)\b", text):
+    if re.search(
+        r"\bmute(?: the)? (?:audio|sound|volume)\b|"
+        r"\bsilence(?: the)? (?:audio|sound|volume)\b",
+        text,
+    ):
         return "mute", "Audio muted, Starbadger."
     if re.search(r"\b(?:volume|audio|sound) up\b|\b(?:raise|increase)(?: the)? volume\b", text):
         return "volume_up", "Increasing the volume."
