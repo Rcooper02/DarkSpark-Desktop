@@ -109,6 +109,8 @@ public:
     static QString pageObjectName();
     static QString pageHeaderObjectName();
     static QString exitButtonObjectName();
+    static QString mediaConsoleObjectName();
+    static QString mediaDisplayObjectName();
 };
 
 }  // namespace darkspark::themes

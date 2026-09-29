@@ -153,8 +153,10 @@ DeckPage::DeckPage(QString title, QString subtitle, QWidget* parent)
 
     grid_->setHorizontalSpacing(LegacyTheme::spaceLg());
     grid_->setVerticalSpacing(LegacyTheme::spaceLg());
-    root->addLayout(grid_);
-    root->addStretch(1);
+    // The card grid owns the page's remaining height. This keeps full-page
+    // surfaces framed to the display edge instead of leaving an unused band
+    // below their content; multi-card pages distribute the same space by row.
+    root->addLayout(grid_, 1);
 }
 
 void DeckPage::addCard(DashboardCard* card) {
@@ -254,6 +256,9 @@ int DeckPage::spanForSize(const DashboardCard* card, int columns) {
         break;
     case DashboardCard::Size::Wide:
         span = 3;
+        break;
+    case DashboardCard::Size::Full:
+        span = columns;
         break;
     }
     return std::clamp(span, 1, columns);
