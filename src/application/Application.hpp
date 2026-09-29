@@ -23,6 +23,7 @@ class ITelemetryProvider;
 namespace darkspark::services {
 class DesktopControlService;
 class CompanionTrackingService;
+class CompanionVoiceService;
 }
 
 namespace darkspark::application {
@@ -86,6 +87,7 @@ private:
     void startTelemetry();
     void startDesktopControls();
     void startCompanionTracking();
+    void startCompanionVoice();
 
     /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
@@ -96,6 +98,7 @@ private:
     void connectTelemetryToDeck(deck::DeckWindow* window);
     void connectDesktopControlsToDeck(deck::DeckWindow* window);
     void connectCompanionTrackingToDeck(deck::DeckWindow* window);
+    void connectCompanionVoiceToDeck(deck::DeckWindow* window);
 
     QApplication& qtApp_;
     std::unique_ptr<desktop::DesktopWindow> desktopWindow_;
@@ -111,6 +114,7 @@ private:
     QVector<interfaces::ITelemetryProvider*> providers_;
     services::DesktopControlService* desktopControlService_ = nullptr;
     services::CompanionTrackingService* companionTrackingService_ = nullptr;
+    services::CompanionVoiceService* companionVoiceService_ = nullptr;
 };
 
 }  // namespace darkspark::application

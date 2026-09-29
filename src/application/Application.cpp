@@ -9,6 +9,7 @@
 #include "services/MemoryTelemetryService.hpp"
 #include "services/DesktopControlService.hpp"
 #include "services/CompanionTrackingService.hpp"
+#include "services/CompanionVoiceService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -66,6 +67,7 @@ int Application::run(const LaunchOptions& options) {
     startTelemetry();
     startDesktopControls();
     startCompanionTracking();
+    startCompanionVoice();
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -95,6 +97,7 @@ void Application::startDesktop() {
                     connectTelemetryToDeck(deckWindow_.get());
                     connectDesktopControlsToDeck(deckWindow_.get());
                     connectCompanionTrackingToDeck(deckWindow_.get());
+                    connectCompanionVoiceToDeck(deckWindow_.get());
                 }
                 deckWindow_->showWindowed();
                 deckWindow_->raise();
@@ -131,6 +134,7 @@ void Application::startDeck(int requestedScreenIndex) {
     connectTelemetryToDeck(deckWindow_.get());
     connectDesktopControlsToDeck(deckWindow_.get());
     connectCompanionTrackingToDeck(deckWindow_.get());
+    connectCompanionVoiceToDeck(deckWindow_.get());
 
     deckWindow_->showDeckFullscreen(target);
     qCInfo(lcApp) << "Started in Deck mode";
@@ -163,6 +167,29 @@ void Application::startCompanionTracking() {
         companionTrackingService_ =
             new services::CompanionTrackingService(this);
     }
+}
+
+void Application::startCompanionVoice() {
+    if (companionVoiceService_ == nullptr) {
+        companionVoiceService_ = new services::CompanionVoiceService(this);
+    }
+}
+
+void Application::connectCompanionVoiceToDeck(deck::DeckWindow* window) {
+    if (window == nullptr || companionVoiceService_ == nullptr ||
+        desktopControlService_ == nullptr) {
+        return;
+    }
+
+    connect(window, &deck::DeckWindow::companionListenRequested,
+            companionVoiceService_, &services::CompanionVoiceService::listen);
+    connect(companionVoiceService_, &services::CompanionVoiceService::stateChanged,
+            window, &deck::DeckWindow::setCompanionState);
+    connect(companionVoiceService_, &services::CompanionVoiceService::controlRequested,
+            desktopControlService_, &services::DesktopControlService::perform);
+    connect(desktopControlService_, &services::DesktopControlService::actionCompleted,
+            companionVoiceService_,
+            &services::CompanionVoiceService::handleActionCompleted);
 }
 
 void Application::connectDesktopControlsToDeck(deck::DeckWindow* window) {

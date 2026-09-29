@@ -57,6 +57,20 @@ void DesktopControlService::perform(models::ControlAction action) {
                     QStringLiteral("5%-")},
                    QStringLiteral("Volume decreased"));
         return;
+    case ControlAction::Mute:
+        runCommand(action, QStringLiteral("wpctl"),
+                   {QStringLiteral("set-mute"),
+                    QStringLiteral("@DEFAULT_AUDIO_SINK@"),
+                    QStringLiteral("1")},
+                   QStringLiteral("Audio muted"));
+        return;
+    case ControlAction::Unmute:
+        runCommand(action, QStringLiteral("wpctl"),
+                   {QStringLiteral("set-mute"),
+                    QStringLiteral("@DEFAULT_AUDIO_SINK@"),
+                    QStringLiteral("0")},
+                   QStringLiteral("Audio unmuted"));
+        return;
     case ControlAction::ToggleMute:
         runCommand(action, QStringLiteral("wpctl"),
                    {QStringLiteral("set-mute"),

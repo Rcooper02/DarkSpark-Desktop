@@ -74,6 +74,7 @@ signals:
     /// desktop window).
     void exitRequested();
     void controlRequested(models::ControlAction action);
+    void companionListenRequested();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;

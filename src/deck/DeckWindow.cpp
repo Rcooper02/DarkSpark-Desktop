@@ -123,7 +123,13 @@ void DeckWindow::buildPages() {
             companionCard_ = new CompanionCard();
             page->addCard(companionCard_);
             connect(companionCard_, &CompanionCard::stateRequested, this,
-                    &DeckWindow::setCompanionState);
+                    [this](models::CompanionState state) {
+                        if (state == models::CompanionState::Listening) {
+                            emit companionListenRequested();
+                            return;
+                        }
+                        setCompanionState(state);
+                    });
         }
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
             systemAudioCard_ = new AudioControlCard();

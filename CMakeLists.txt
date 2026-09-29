@@ -77,6 +77,8 @@ qt_add_executable(darkspark-desktop
     src/services/DesktopControlService.hpp
     src/services/CompanionTrackingService.cpp
     src/services/CompanionTrackingService.hpp
+    src/services/CompanionVoiceService.cpp
+    src/services/CompanionVoiceService.hpp
     src/desktop/DesktopWindow.cpp
     src/desktop/DesktopWindow.hpp
     src/deck/DeckWindow.cpp
@@ -120,7 +122,9 @@ include(GNUInstallDirs)
 install(TARGETS darkspark-desktop
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-install(PROGRAMS scripts/hal_face_tracker.py
+install(PROGRAMS
+    scripts/hal_face_tracker.py
+    scripts/hal_voice_command.py
     DESTINATION "${CMAKE_INSTALL_DATADIR}/darkspark")
 
 # --- Tests -------------------------------------------------------------------

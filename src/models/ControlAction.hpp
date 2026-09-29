@@ -16,6 +16,8 @@ enum class ControlAction {
     PlayPause,
     NextTrack,
     VolumeDown,
+    Mute,
+    Unmute,
     ToggleMute,
     VolumeUp
 };
@@ -26,6 +28,8 @@ enum class ControlAction {
     case ControlAction::PlayPause:
     case ControlAction::NextTrack:
     case ControlAction::VolumeDown:
+    case ControlAction::Mute:
+    case ControlAction::Unmute:
     case ControlAction::ToggleMute:
     case ControlAction::VolumeUp:
         return true;
