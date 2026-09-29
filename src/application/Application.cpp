@@ -10,6 +10,7 @@
 #include "services/DesktopControlService.hpp"
 #include "services/CompanionTrackingService.hpp"
 #include "services/CompanionVoiceService.hpp"
+#include "services/CompanionConversationService.hpp"
 #include "themes/LegacyTheme.hpp"
 
 #include <QApplication>
@@ -68,6 +69,7 @@ int Application::run(const LaunchOptions& options) {
     startDesktopControls();
     startCompanionTracking();
     startCompanionVoice();
+    startCompanionConversation();
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -175,8 +177,16 @@ void Application::startCompanionVoice() {
     }
 }
 
+void Application::startCompanionConversation() {
+    if (companionConversationService_ == nullptr) {
+        companionConversationService_ =
+            new services::CompanionConversationService(this);
+    }
+}
+
 void Application::connectCompanionVoiceToDeck(deck::DeckWindow* window) {
     if (window == nullptr || companionVoiceService_ == nullptr ||
+        companionConversationService_ == nullptr ||
         desktopControlService_ == nullptr) {
         return;
     }
@@ -190,6 +200,18 @@ void Application::connectCompanionVoiceToDeck(deck::DeckWindow* window) {
     connect(desktopControlService_, &services::DesktopControlService::actionCompleted,
             companionVoiceService_,
             &services::CompanionVoiceService::handleActionCompleted);
+    connect(companionVoiceService_,
+            &services::CompanionVoiceService::conversationRequested,
+            companionConversationService_,
+            &services::CompanionConversationService::ask);
+    connect(companionConversationService_,
+            &services::CompanionConversationService::responseReady,
+            companionVoiceService_,
+            &services::CompanionVoiceService::speakResponse);
+    connect(companionConversationService_,
+            &services::CompanionConversationService::errorOccurred,
+            companionVoiceService_,
+            &services::CompanionVoiceService::handleConversationError);
 }
 
 void Application::connectDesktopControlsToDeck(deck::DeckWindow* window) {

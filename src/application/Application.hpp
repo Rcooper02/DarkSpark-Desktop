@@ -24,6 +24,7 @@ namespace darkspark::services {
 class DesktopControlService;
 class CompanionTrackingService;
 class CompanionVoiceService;
+class CompanionConversationService;
 }
 
 namespace darkspark::application {
@@ -88,6 +89,7 @@ private:
     void startDesktopControls();
     void startCompanionTracking();
     void startCompanionVoice();
+    void startCompanionConversation();
 
     /// Connect every telemetry provider to a freshly constructed DeckWindow.
     ///
@@ -115,6 +117,7 @@ private:
     services::DesktopControlService* desktopControlService_ = nullptr;
     services::CompanionTrackingService* companionTrackingService_ = nullptr;
     services::CompanionVoiceService* companionVoiceService_ = nullptr;
+    services::CompanionConversationService* companionConversationService_ = nullptr;
 };
 
 }  // namespace darkspark::application

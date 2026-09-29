@@ -114,6 +114,7 @@ void CompanionVoiceService::finishListening(int exitCode,
 
     const QJsonObject result = document.object();
     const QString transcript = result.value(QStringLiteral("transcript")).toString();
+    const QString normalized = result.value(QStringLiteral("normalized")).toString();
     const QString token = result.value(QStringLiteral("command")).toString();
     const QString response = result.value(QStringLiteral("response")).toString();
     emit transcriptReady(transcript);
@@ -121,8 +122,12 @@ void CompanionVoiceService::finishListening(int exitCode,
 
     const std::optional<models::ControlAction> action = actionForToken(token);
     if (!action.has_value()) {
-        speak(response.isEmpty() ? QStringLiteral("I did not understand that command.")
-                                 : response);
+        if (normalized.isEmpty()) {
+            speak(response.isEmpty() ? QStringLiteral("I heard only silence.")
+                                     : response);
+        } else {
+            emit conversationRequested(normalized);
+        }
         return;
     }
 
@@ -130,6 +135,15 @@ void CompanionVoiceService::finishListening(int exitCode,
     pendingAction_ = *action;
     pendingResponse_ = response;
     emit controlRequested(*action);
+}
+
+void CompanionVoiceService::speakResponse(const QString& response) {
+    speak(response.simplified().left(900));
+}
+
+void CompanionVoiceService::handleConversationError(const QString& message) {
+    emit errorOccurred(message);
+    speak(QStringLiteral("My conversational system is not available."));
 }
 
 void CompanionVoiceService::handleActionCompleted(models::ControlAction action,

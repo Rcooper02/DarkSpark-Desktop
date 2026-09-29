@@ -23,6 +23,8 @@ public:
 
 public slots:
     void listen();
+    void speakResponse(const QString& response);
+    void handleConversationError(const QString& message);
     void handleActionCompleted(models::ControlAction action, bool success,
                                const QString& message);
 
@@ -30,6 +32,7 @@ signals:
     void stateChanged(models::CompanionState state);
     void controlRequested(models::ControlAction action);
     void transcriptReady(const QString& transcript);
+    void conversationRequested(const QString& transcript);
     void errorOccurred(const QString& message);
 
 private:
