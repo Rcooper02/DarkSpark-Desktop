@@ -11,6 +11,8 @@
 #include "services/CompanionTrackingService.hpp"
 #include "services/CompanionSpeechService.hpp"
 #include "services/CompanionListeningService.hpp"
+#include "services/CompanionConversationService.hpp"
+#include <QRegularExpression>
 #include "models/CompanionState.hpp"
 #include "themes/LegacyTheme.hpp"
 
@@ -71,6 +73,19 @@ int Application::run(const LaunchOptions& options) {
     startCompanionTracking();
     startCompanionSpeech();
     startCompanionListening();
+    companionConversationService_ = new services::CompanionConversationService(this);
+    connect(companionConversationService_, &services::CompanionConversationService::responseReady,
+            companionSpeechService_, &services::CompanionSpeechService::speak);
+    connect(companionSpeechService_, &services::CompanionSpeechService::speechStarted,
+            this, [this]() { companionSpeechBusy_ = true; });
+    connect(companionSpeechService_, &services::CompanionSpeechService::speechFinished,
+            this, [this]() { companionSpeechBusy_ = false; });
+    connect(companionSpeechService_, &services::CompanionSpeechService::speechFailed,
+            this, [this](const QString&) { companionSpeechBusy_ = false; });
+    connect(companionListeningService_, &services::CompanionListeningService::listeningStarted,
+            this, [this]() { companionListeningBusy_ = true; });
+    connect(companionListeningService_, &services::CompanionListeningService::listeningFailed,
+            this, [this](const QString&) { companionListeningBusy_ = false; });
 
     switch (options.mode) {
     case StartupMode::Desktop:
@@ -223,8 +238,10 @@ void Application::connectCompanionSpeechToDeck(
 
     connect(window,
             &deck::DeckWindow::companionSpeechRequested,
-            companionSpeechService_,
-            &services::CompanionSpeechService::speak);
+            window, [this](const QString& text) {
+                if (!companionListeningBusy_ && !companionConversationService_->isBusy()
+                    && !companionSpeechBusy_) companionSpeechService_->speak(text);
+            });
 
     connect(companionSpeechService_,
             &services::CompanionSpeechService::speechStarted,
@@ -256,8 +273,10 @@ void Application::connectCompanionListeningToDeck(
 
     connect(window,
             &deck::DeckWindow::companionListenRequested,
-            companionListeningService_,
-            &services::CompanionListeningService::listen);
+            window, [this]() {
+                if (!companionSpeechBusy_ && !companionConversationService_->isBusy()
+                    && !companionListeningBusy_) companionListeningService_->listen();
+            });
 
     connect(companionListeningService_,
             &services::CompanionListeningService::listeningStarted,
@@ -278,9 +297,23 @@ void Application::connectCompanionListeningToDeck(
     connect(companionListeningService_,
             &services::CompanionListeningService::transcriptionReady,
             window,
-            [window](const QString&) {
-                window->setCompanionState(
-                    models::CompanionState::Idle);
+            [this, window](const QString& transcript) {
+                companionListeningBusy_ = false;
+                QString text = transcript.trimmed();
+                text.remove(QRegularExpression(QStringLiteral("\\[[^\\]]*\\]|<\\|[^>]*\\|>")));
+                text = text.trimmed();
+                if (text.isEmpty()) {
+                    window->setCompanionState(models::CompanionState::Idle);
+                    return;
+                }
+                window->setCompanionState(models::CompanionState::Thinking);
+                companionConversationService_->ask(text);
+            });
+
+    connect(companionConversationService_,
+            &services::CompanionConversationService::errorOccurred,
+            window, [window](const QString&) {
+                window->setCompanionState(models::CompanionState::Alert);
             });
 
     connect(companionListeningService_,

@@ -25,6 +25,7 @@ class DesktopControlService;
 class CompanionTrackingService;
 class CompanionSpeechService;
 class CompanionListeningService;
+class CompanionConversationService;
 }
 
 namespace darkspark::application {
@@ -119,6 +120,9 @@ private:
     services::CompanionTrackingService* companionTrackingService_ = nullptr;
     services::CompanionSpeechService* companionSpeechService_ = nullptr;
     services::CompanionListeningService* companionListeningService_ = nullptr;
+    services::CompanionConversationService* companionConversationService_ = nullptr;
+    bool companionSpeechBusy_ = false;
+    bool companionListeningBusy_ = false;
 };
 
 }  // namespace darkspark::application

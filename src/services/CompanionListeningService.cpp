@@ -28,6 +28,12 @@ CompanionListeningService::CompanionListeningService(QObject* parent)
       recordTimer_(new QTimer(this)),
       recordingPath_(QStringLiteral("/tmp/darkspark-hal-listen.wav")) {
     recordTimer_->setSingleShot(true);
+    connect(whisperProcess_, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError error) {
+                if (error == QProcess::FailedToStart)
+                    emit listeningFailed(QStringLiteral("Unable to start Whisper: %1")
+                                             .arg(whisperProcess_->errorString()));
+            });
 
     connect(recordTimer_, &QTimer::timeout,
             this, &CompanionListeningService::stopRecordingAndTranscribe);
