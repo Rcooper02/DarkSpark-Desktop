@@ -1,203 +1,123 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "services/CompanionListeningService.hpp"
-
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
 #include <QProcess>
 #include <QTimer>
+#include <QStringList>
 
 namespace darkspark::services {
-
 namespace {
 Q_LOGGING_CATEGORY(lcListening, "darkspark.companion.listening")
-
-constexpr int kRecordingMilliseconds = 6000;
-
-const QString kDefaultMicrophone =
-    QStringLiteral(
-        "alsa_input.usb-Generic_Razer_Seiren_V3_Chroma_"
-        "UC2425L07500462-00.analog-stereo");
 }
-
 CompanionListeningService::CompanionListeningService(QObject* parent)
-    : QObject(parent),
-      recordProcess_(new QProcess(this)),
-      whisperProcess_(new QProcess(this)),
-      recordTimer_(new QTimer(this)),
-      recordingPath_(QStringLiteral("/tmp/darkspark-hal-listen.wav")) {
-    recordTimer_->setSingleShot(true);
-    connect(whisperProcess_, &QProcess::errorOccurred, this,
-            [this](QProcess::ProcessError error) {
-                if (error == QProcess::FailedToStart)
-                    emit listeningFailed(QStringLiteral("Unable to start Whisper: %1")
-                                             .arg(whisperProcess_->errorString()));
-            });
-
-    connect(recordTimer_, &QTimer::timeout,
-            this, &CompanionListeningService::stopRecordingAndTranscribe);
-
-    connect(
-        whisperProcess_,
-        qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-        this,
-        [this](int exitCode, QProcess::ExitStatus status) {
-            const QString stderrText =
-                QString::fromUtf8(
-                    whisperProcess_->readAllStandardError());
-
-            if (status != QProcess::NormalExit || exitCode != 0) {
-                qCWarning(lcListening).noquote()
-                    << "Whisper failed:" << stderrText.trimmed();
-
-                emit listeningFailed(
-                    QStringLiteral("Whisper failed: %1")
-                        .arg(stderrText.trimmed()));
-                return;
+    : QObject(parent), helper_(new QProcess(this)) {
+    helper_->setProcessChannelMode(QProcess::SeparateChannels);
+    connect(helper_, &QProcess::readyReadStandardError, this, [this]() {
+        const QByteArray diagnostics = helper_->readAllStandardError();
+        const QList<QByteArray> lines = diagnostics.split('\n');
+        for (const QByteArray& line : lines) {
+            if (line.contains("[wake-debug]"))
+                qCInfo(lcListening).noquote() << line;
+        }
+    });
+    connect(helper_, &QProcess::readyReadStandardOutput, this, [this]() {
+        output_.append(helper_->readAllStandardOutput());
+        qsizetype end;
+        while ((end = output_.indexOf('\n')) >= 0) {
+            const QByteArray line = output_.left(end);
+            output_.remove(0, end + 1);
+            const auto object = QJsonDocument::fromJson(line).object();
+            const QString event = object.value(QStringLiteral("event")).toString();
+            if (event == QStringLiteral("wake_detected")) {
+                qCInfo(lcListening) << "HAL wake word detected";
+                emit wakeDetected();
             }
-
-            const QString text =
-                QString::fromUtf8(
-                    whisperProcess_->readAllStandardOutput()).trimmed();
-
-            qCInfo(lcListening).noquote()
-                << "HAL heard:" << text;
-
-            emit transcriptionReady(text);
-        });
+            else if (event == QStringLiteral("listening")) emit listeningStarted();
+            else if (event == QStringLiteral("transcribing")) emit transcriptionStarted();
+            else if (event == QStringLiteral("transcript")) {
+                const QString text = object.value(QStringLiteral("text")).toString();
+                qCInfo(lcListening) << "HAL heard:" << text;
+                emit transcriptionReady(text);
+            } else if (event == QStringLiteral("error")) {
+                emit listeningFailed(object.value(QStringLiteral("message")).toString());
+            } else if (event == QStringLiteral("ready")) {
+                qCInfo(lcListening) << "HAL microphone ready; wake listening:"
+                    << object.value(QStringLiteral("wake")).toBool();
+            }
+        }
+    });
+    connect(helper_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (!stopping_ && error == QProcess::FailedToStart)
+            emit listeningFailed(helper_->errorString());
+    });
+    connect(helper_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+                if (!stopping_) emit listeningFailed(QStringLiteral("HAL microphone helper stopped"));
+            });
+    if (qEnvironmentVariable("DARKSPARK_HAL_WAKE") == QStringLiteral("1"))
+        QTimer::singleShot(3000, this, [this]() { startHelper(); });
 }
-
-CompanionListeningService::~CompanionListeningService() {
-    stop();
-}
+CompanionListeningService::~CompanionListeningService() { stop(); }
 
 QString CompanionListeningService::findWhisperPython() const {
-    const QString override =
-        qEnvironmentVariable("DARKSPARK_WHISPER_PYTHON");
-
-    if (!override.isEmpty() && QFileInfo::exists(override)) {
-        return override;
-    }
-
+    const QString override = qEnvironmentVariable("DARKSPARK_WHISPER_PYTHON");
+    if (!override.isEmpty() && QFileInfo::exists(override)) return override;
     const QDir appDir(QCoreApplication::applicationDirPath());
-
-    const QStringList candidates{
-        appDir.filePath(QStringLiteral("../../.venv-whisper/bin/python")),
-        appDir.filePath(QStringLiteral("../.venv-whisper/bin/python"))
-    };
-
-    for (const QString& candidate : candidates) {
-        if (QFileInfo::exists(candidate)) {
-            // Preserve the virtual-environment launcher path. Resolving this
-            // symlink to /usr/bin/python would bypass the venv site-packages.
-            return QFileInfo(candidate).absoluteFilePath();
-        }
+    for (const QString& relative : {QStringLiteral("../../.venv-whisper/bin/python"),
+                                   QStringLiteral("../.venv-whisper/bin/python")}) {
+        const QFileInfo candidate(appDir.filePath(relative));
+        if (candidate.exists()) return candidate.absoluteFilePath();
     }
-
     return {};
 }
 
-void CompanionListeningService::listen() {
-    if (recordProcess_->state() != QProcess::NotRunning ||
-        whisperProcess_->state() != QProcess::NotRunning) {
-        qCWarning(lcListening) << "HAL listening request ignored: busy";
-        return;
-    }
-
-    recordProcess_->setProgram(QStringLiteral("/usr/bin/parec"));
-    recordProcess_->setArguments({
-        QStringLiteral("--device=%1").arg(kDefaultMicrophone),
-        QStringLiteral("--format=s16le"),
-        QStringLiteral("--rate=16000"),
-        QStringLiteral("--channels=1"),
-        QStringLiteral("--file-format=wav")
-    });
-
-    recordProcess_->setStandardOutputFile(recordingPath_,
-                                          QIODevice::Truncate);
-
-    qCInfo(lcListening) << "HAL listening on Razer Seiren";
-    emit listeningStarted();
-
-    recordProcess_->start();
-
-    if (!recordProcess_->waitForStarted(1500)) {
-        emit listeningFailed(
-            QStringLiteral("Unable to start microphone recording: %1")
-                .arg(recordProcess_->errorString()));
-        return;
-    }
-
-    recordTimer_->start(kRecordingMilliseconds);
-}
-
-void CompanionListeningService::stopRecordingAndTranscribe() {
-    if (recordProcess_->state() != QProcess::NotRunning) {
-        recordProcess_->terminate();
-
-        if (!recordProcess_->waitForFinished(1000)) {
-            recordProcess_->kill();
-            recordProcess_->waitForFinished(1000);
-        }
-    }
-
+bool CompanionListeningService::startHelper() {
+    if (helper_->state() != QProcess::NotRunning) return true;
     const QString python = findWhisperPython();
-
-    if (python.isEmpty()) {
-        emit listeningFailed(
-            QStringLiteral("Whisper Python environment not found"));
-        return;
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    QString script;
+    for (const QString& relative : {QStringLiteral("../../scripts/hal_listen.py"),
+                                   QStringLiteral("../scripts/hal_listen.py")}) {
+        const QFileInfo candidate(appDir.filePath(relative));
+        if (candidate.isFile()) { script = candidate.absoluteFilePath(); break; }
     }
-
-    emit transcriptionStarted();
-
-    const QString script = QStringLiteral(R"PY(
-from pywhispercpp.model import Model
-import sys
-
-path = sys.argv[1]
-
-model = Model(
-    "base.en",
-    n_threads=6,
-    print_progress=False,
-    print_realtime=False,
-)
-
-segments = model.transcribe(path)
-text = " ".join(segment.text.strip() for segment in segments).strip()
-print(text)
-)PY");
-
-    whisperProcess_->setProgram(python);
-    whisperProcess_->setArguments({
-        QStringLiteral("-c"),
-        script,
-        recordingPath_
-    });
-
-    whisperProcess_->setProcessChannelMode(QProcess::SeparateChannels);
-
-    qCInfo(lcListening) << "HAL transcribing";
-    whisperProcess_->start();
+    if (python.isEmpty() || script.isEmpty()) {
+        emit listeningFailed(QStringLiteral("HAL Whisper environment or hal_listen.py not found"));
+        return false;
+    }
+    QString microphone = qEnvironmentVariable("DARKSPARK_MICROPHONE");
+    if (microphone.isEmpty()) microphone = QStringLiteral("all");
+    QStringList args{QStringLiteral("-u"), script, QStringLiteral("--device"), microphone};
+    if (qEnvironmentVariable("DARKSPARK_HAL_WAKE") == QStringLiteral("1"))
+        args.append(QStringLiteral("--wake"));
+    output_.clear(); stopping_ = false;
+    helper_->start(python, args);
+    if (!helper_->waitForStarted(1000)) return false;
+    if (paused_) helper_->write("pause\n");
+    return true;
 }
-
+void CompanionListeningService::listen() {
+    if (!paused_ && startHelper()) helper_->write("listen\n");
+}
+void CompanionListeningService::setPaused(bool paused) {
+    qCInfo(lcListening) << "HAL listening pause state ->" << paused;
+    paused_ = paused;
+    if (helper_->state() != QProcess::NotRunning)
+        helper_->write(paused ? "pause\n" : "resume\n");
+}
 void CompanionListeningService::stop() {
-    recordTimer_->stop();
-
-    for (QProcess* process : {recordProcess_, whisperProcess_}) {
-        if (process->state() == QProcess::NotRunning) {
-            continue;
-        }
-
-        process->terminate();
-
-        if (!process->waitForFinished(1000)) {
-            process->kill();
-            process->waitForFinished(1000);
-        }
+    stopping_ = true;
+    if (helper_->state() == QProcess::NotRunning) return;
+    helper_->write("stop\n");
+    helper_->closeWriteChannel();
+    if (helper_->state() != QProcess::NotRunning && !helper_->waitForFinished(1500)) {
+        helper_->terminate();
+        if (!helper_->waitForFinished(1000)) { helper_->kill(); helper_->waitForFinished(1000); }
     }
 }
-
-}  // namespace darkspark::services
+}

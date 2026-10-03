@@ -24,6 +24,8 @@ class CompanionCard;
 namespace darkspark::deck::cards {
 class AudioControlCard;
 class ControlDeckCard;
+class FeishinCard;
+class SystemMediaCard;
 }
 
 namespace darkspark::deck {
@@ -68,12 +70,21 @@ public:
     void reportControlResult(models::ControlAction action, bool success,
                              const QString& message);
 
+    void receiveMediaState(const QString& player,
+                           const QString& title,
+                           const QString& artist,
+                           const QString& album,
+                           const QString& artUrl,
+                           bool playing);
+
 signals:
     /// Emitted when the user requests to leave Deck Mode (Exit button or
     /// Escape). The owner decides what "leaving" means (close, or return to a
     /// desktop window).
     void exitRequested();
     void controlRequested(models::ControlAction action);
+    void customControlRequested(const QString& actionType,
+                                const QString& target);
     void companionSpeechRequested(const QString& text);
     void companionListenRequested();
 
@@ -89,8 +100,8 @@ private:
     /// stack. Never exposed publicly; may be null if that page is absent.
     pages::DeckPage* systemPage_ = nullptr;
     companion::CompanionCard* companionCard_ = nullptr;
-    cards::AudioControlCard* systemAudioCard_ = nullptr;
     cards::ControlDeckCard* controlDeckCard_ = nullptr;
+    cards::SystemMediaCard* systemMediaCard_ = nullptr;
 };
 
 }  // namespace darkspark::deck

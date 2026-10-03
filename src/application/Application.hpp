@@ -22,6 +22,8 @@ class ITelemetryProvider;
 }
 namespace darkspark::services {
 class DesktopControlService;
+class DeckActionService;
+class MediaSessionService;
 class CompanionTrackingService;
 class CompanionSpeechService;
 class CompanionListeningService;
@@ -88,6 +90,8 @@ private:
     /// available immediately whenever a Deck window appears.
     void startTelemetry();
     void startDesktopControls();
+    void startDeckActions();
+    void startMediaSession();
     void startCompanionTracking();
     void startCompanionSpeech();
     void startCompanionListening();
@@ -100,6 +104,8 @@ private:
     /// connections are removed automatically if the window is destroyed.
     void connectTelemetryToDeck(deck::DeckWindow* window);
     void connectDesktopControlsToDeck(deck::DeckWindow* window);
+    void connectDeckActionsToDeck(deck::DeckWindow* window);
+    void connectMediaSessionToDeck(deck::DeckWindow* window);
     void connectCompanionTrackingToDeck(deck::DeckWindow* window);
     void connectCompanionSpeechToDeck(deck::DeckWindow* window);
     void connectCompanionListeningToDeck(deck::DeckWindow* window);
@@ -117,11 +123,15 @@ private:
     /// on which provider produced it.
     QVector<interfaces::ITelemetryProvider*> providers_;
     services::DesktopControlService* desktopControlService_ = nullptr;
+    services::DeckActionService* deckActionService_ = nullptr;
+    services::MediaSessionService* mediaSessionService_ = nullptr;
     services::CompanionTrackingService* companionTrackingService_ = nullptr;
     services::CompanionSpeechService* companionSpeechService_ = nullptr;
     services::CompanionListeningService* companionListeningService_ = nullptr;
     services::CompanionConversationService* companionConversationService_ = nullptr;
     bool companionSpeechBusy_ = false;
+    bool companionWakeGreetingPending_ = false;
+    bool companionConversationSessionActive_ = false;
     bool companionListeningBusy_ = false;
 };
 

@@ -9,6 +9,7 @@
 #include <QAbstractButton>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QStackedLayout>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -26,6 +27,19 @@ PageManager::PageManager(QWidget* parent)
     : QWidget(parent), stack_(new QStackedWidget(this)),
       indicator_(new PageIndicator(this)),
       transition_(new animations::PageTransition(stack_, this)) {
+    // Keep every deck page technically visible instead of hiding inactive
+    // pages. This is particularly important for Page 2 because its embedded
+    // QWebEngineView (Feishin) needs to keep its renderer/compositor alive
+    // while another DarkSpark page is covering it.
+    //
+    // StackAll leaves every page alive at full size and simply raises the
+    // current page above the others.
+    if (auto* stackedLayout =
+            qobject_cast<QStackedLayout*>(stack_->layout())) {
+        stackedLayout->setStackingMode(
+            QStackedLayout::StackAll);
+    }
+
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(LegacyTheme::spaceMd());

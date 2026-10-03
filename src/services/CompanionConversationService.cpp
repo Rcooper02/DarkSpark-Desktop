@@ -2,6 +2,8 @@
 #include "services/CompanionConversationService.hpp"
 
 #include <QByteArray>
+#include <QDateTime>
+#include <QTimeZone>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -24,6 +26,54 @@ constexpr auto kInstructions =
     "sentences suitable for text-to-speech. The user's spoken name is Star "
     "Badger. Use it sparingly. Never claim that you operated the computer; "
     "desktop controls are handled by a separate local allow-listed system.";
+
+
+QString currentInstructions() {
+    const QString configuredZone =
+        qEnvironmentVariable("DARKSPARK_TIMEZONE").trimmed();
+    const QString location =
+        qEnvironmentVariable("DARKSPARK_LOCATION").trimmed();
+
+    QDateTime now;
+    QString timezone;
+
+    if (!configuredZone.isEmpty()) {
+        const QTimeZone zone(configuredZone.toUtf8());
+
+        if (zone.isValid()) {
+            now = QDateTime::currentDateTimeUtc().toTimeZone(zone);
+            timezone = QString::fromUtf8(zone.id());
+        }
+    }
+
+    if (!now.isValid()) {
+        now = QDateTime::currentDateTime();
+        timezone =
+            QString::fromUtf8(QTimeZone::systemTimeZoneId());
+    }
+
+    const QString localContext = QStringLiteral(
+        "\n\nTrusted local context supplied by DarkSpark:"
+        "\n- Current date: %1"
+        "\n- Current local time: %2"
+        "\n- Time zone: %3"
+        "\n- Location: %4"
+        "\nTreat this context as authoritative for questions about the "
+        "current date, time, time zone, and the user's location. "
+        "Do not guess or substitute a different time or location.")
+        .arg(
+            now.toString(QStringLiteral("dddd, MMMM d, yyyy")),
+            now.toString(QStringLiteral("h:mm AP")),
+            timezone.isEmpty()
+                ? QStringLiteral("unknown")
+                : timezone,
+            location.isEmpty()
+                ? QStringLiteral("not configured")
+                : location
+        );
+
+    return QString::fromUtf8(kInstructions) + localContext;
+}
 
 QString extractResponseText(const QJsonObject& root) {
     const QJsonArray output = root.value(QStringLiteral("output")).toArray();
@@ -60,6 +110,8 @@ void CompanionConversationService::ask(const QString& transcript) {
         return;
     }
 
+    const QString instructions = currentInstructions();
+
     QJsonArray input;
     for (const Turn& turn : history_) {
         input.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
@@ -73,7 +125,7 @@ void CompanionConversationService::ask(const QString& transcript) {
 
     QJsonObject payload{
         {QStringLiteral("model"), model()},
-        {QStringLiteral("instructions"), QString::fromUtf8(kInstructions)},
+        {QStringLiteral("instructions"), instructions},
         {QStringLiteral("input"), input},
     };
 
@@ -81,7 +133,7 @@ void CompanionConversationService::ask(const QString& transcript) {
         QJsonArray messages;
         messages.append(QJsonObject{
             {QStringLiteral("role"), QStringLiteral("system")},
-            {QStringLiteral("content"), QString::fromUtf8(kInstructions)}});
+            {QStringLiteral("content"), instructions}});
         for (const QJsonValue& message : input) messages.append(message);
         payload = QJsonObject{
             {QStringLiteral("model"), model()},

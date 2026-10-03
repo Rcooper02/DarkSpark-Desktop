@@ -4,3 +4,13 @@
 
 # Local Python virtual environments
 .venv-whisper/
+
+.venv-wake-train/
+wakeword-training/
+
+# Local development backups
+*.pre-*
+
+# Python cache / bytecode
+__pycache__/
+*.py[cod]

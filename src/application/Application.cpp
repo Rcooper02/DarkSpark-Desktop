@@ -8,6 +8,8 @@
 #include "services/CpuTelemetryService.hpp"
 #include "services/MemoryTelemetryService.hpp"
 #include "services/DesktopControlService.hpp"
+#include "services/DeckActionService.hpp"
+#include "services/MediaSessionService.hpp"
 #include "services/CompanionTrackingService.hpp"
 #include "services/CompanionSpeechService.hpp"
 #include "services/CompanionListeningService.hpp"
@@ -22,6 +24,7 @@
 #include <QLoggingCategory>
 #include <QScreen>
 #include <QStringList>
+#include <QTime>
 
 namespace darkspark::application {
 
@@ -70,6 +73,8 @@ int Application::run(const LaunchOptions& options) {
     // never), so sampling is not tied to any window's existence.
     startTelemetry();
     startDesktopControls();
+    startDeckActions();
+    startMediaSession();
     startCompanionTracking();
     startCompanionSpeech();
     startCompanionListening();
@@ -77,13 +82,62 @@ int Application::run(const LaunchOptions& options) {
     connect(companionConversationService_, &services::CompanionConversationService::responseReady,
             companionSpeechService_, &services::CompanionSpeechService::speak);
     connect(companionSpeechService_, &services::CompanionSpeechService::speechStarted,
-            this, [this]() { companionSpeechBusy_ = true; });
+            this, [this]() { companionSpeechBusy_ = true; companionListeningService_->setPaused(true); });
     connect(companionSpeechService_, &services::CompanionSpeechService::speechFinished,
-            this, [this]() { companionSpeechBusy_ = false; });
+            this, [this]() {
+                companionSpeechBusy_ = false;
+                companionListeningService_->setPaused(false);
+
+                if (companionWakeGreetingPending_) {
+                    companionWakeGreetingPending_ = false;
+                    companionListeningService_->listen();
+                    return;
+                }
+
+                // Once HAL has been awakened, keep the conversation open.
+                // After each spoken reply, immediately listen for the next turn.
+                if (companionConversationSessionActive_) {
+                    companionListeningService_->listen();
+                }
+            });
     connect(companionSpeechService_, &services::CompanionSpeechService::speechFailed,
-            this, [this](const QString&) { companionSpeechBusy_ = false; });
+            this, [this](const QString&) {
+                companionSpeechBusy_ = false;
+                companionListeningService_->setPaused(false);
+
+                if (companionWakeGreetingPending_) {
+                    companionWakeGreetingPending_ = false;
+                    companionListeningService_->listen();
+                }
+            });
     connect(companionListeningService_, &services::CompanionListeningService::listeningStarted,
             this, [this]() { companionListeningBusy_ = true; });
+
+    connect(companionListeningService_, &services::CompanionListeningService::wakeDetected,
+            this, [this]() {
+                if (companionSpeechBusy_
+                    || companionConversationService_->isBusy()
+                    || companionWakeGreetingPending_) {
+                    return;
+                }
+
+                companionConversationSessionActive_ = true;
+                companionWakeGreetingPending_ = true;
+                companionListeningService_->setPaused(true);
+
+                const int hour = QTime::currentTime().hour();
+                QString greeting;
+
+                if (hour >= 5 && hour < 12)
+                    greeting = QStringLiteral("Good morning.");
+                else if (hour >= 12 && hour < 18)
+                    greeting = QStringLiteral("Good afternoon.");
+                else
+                    greeting = QStringLiteral("Good evening.");
+
+                qCInfo(lcApp) << "HAL wake greeting:" << greeting;
+                companionSpeechService_->speak(greeting);
+            });
     connect(companionListeningService_, &services::CompanionListeningService::listeningFailed,
             this, [this](const QString&) { companionListeningBusy_ = false; });
 
@@ -114,6 +168,8 @@ void Application::startDesktop() {
                     // the window is shown.
                     connectTelemetryToDeck(deckWindow_.get());
                     connectDesktopControlsToDeck(deckWindow_.get());
+                    connectDeckActionsToDeck(deckWindow_.get());
+                    connectMediaSessionToDeck(deckWindow_.get());
                     connectCompanionTrackingToDeck(deckWindow_.get());
                     connectCompanionSpeechToDeck(deckWindow_.get());
                     connectCompanionListeningToDeck(deckWindow_.get());
@@ -152,6 +208,8 @@ void Application::startDeck(int requestedScreenIndex) {
     // Wire telemetry immediately after construction and before showing.
     connectTelemetryToDeck(deckWindow_.get());
     connectDesktopControlsToDeck(deckWindow_.get());
+    connectDeckActionsToDeck(deckWindow_.get());
+    connectMediaSessionToDeck(deckWindow_.get());
     connectCompanionTrackingToDeck(deckWindow_.get());
     connectCompanionSpeechToDeck(deckWindow_.get());
     connectCompanionListeningToDeck(deckWindow_.get());
@@ -179,6 +237,20 @@ void Application::startTelemetry() {
 void Application::startDesktopControls() {
     if (desktopControlService_ == nullptr) {
         desktopControlService_ = new services::DesktopControlService(this);
+    }
+}
+
+void Application::startDeckActions() {
+    if (deckActionService_ == nullptr) {
+        deckActionService_ =
+            new services::DeckActionService(this);
+    }
+}
+
+void Application::startMediaSession() {
+    if (mediaSessionService_ == nullptr) {
+        mediaSessionService_ =
+            new services::MediaSessionService(this);
     }
 }
 
@@ -211,6 +283,67 @@ void Application::connectDesktopControlsToDeck(deck::DeckWindow* window) {
             &services::DesktopControlService::perform);
     connect(desktopControlService_, &services::DesktopControlService::actionCompleted,
             window, &deck::DeckWindow::reportControlResult);
+}
+
+void Application::connectDeckActionsToDeck(
+    deck::DeckWindow* window) {
+
+    if (window == nullptr || deckActionService_ == nullptr) {
+        return;
+    }
+
+    connect(
+        window,
+        &deck::DeckWindow::customControlRequested,
+        deckActionService_,
+        &services::DeckActionService::perform
+    );
+
+    connect(
+        deckActionService_,
+        &services::DeckActionService::actionCompleted,
+        window,
+        [window](bool success, const QString& message) {
+            Q_UNUSED(success);
+            Q_UNUSED(message);
+        }
+    );
+
+    connect(
+        deckActionService_,
+        &services::DeckActionService::pageRequested,
+        window,
+        [window](const QString& pageName) {
+            Q_UNUSED(window);
+            Q_UNUSED(pageName);
+            // Page switching will be wired once PageManager exposes
+            // a safe title-based navigation method.
+        }
+    );
+}
+
+void Application::connectMediaSessionToDeck(
+    deck::DeckWindow* window) {
+
+    if (window == nullptr || mediaSessionService_ == nullptr)
+        return;
+
+    connect(
+        mediaSessionService_,
+        &services::MediaSessionService::mediaChanged,
+        window,
+        &deck::DeckWindow::receiveMediaState
+    );
+
+    // Prime the UI immediately.
+    window->receiveMediaState(
+        mediaSessionService_->playerName(),
+        mediaSessionService_->title(),
+        mediaSessionService_->artist(),
+        mediaSessionService_->album(),
+        mediaSessionService_->artUrl(),
+        mediaSessionService_->playing()
+    );
 }
 
 void Application::connectCompanionTrackingToDeck(
@@ -302,17 +435,43 @@ void Application::connectCompanionListeningToDeck(
                 QString text = transcript.trimmed();
                 text.remove(QRegularExpression(QStringLiteral("\\[[^\\]]*\\]|<\\|[^>]*\\|>")));
                 text = text.trimmed();
-                if (text.isEmpty()) {
+
+                const QString command = text.toLower()
+                    .remove(QRegularExpression(QStringLiteral("[^a-z ]")))
+                    .simplified();
+
+                if (command == QStringLiteral("stop listening")
+                    || command == QStringLiteral("stop listen")
+                    || command == QStringLiteral("go to sleep")
+                    || command == QStringLiteral("sleep")
+                    || command == QStringLiteral("go to sleep hal")
+                    || command == QStringLiteral("good night hal")) {
+                    companionConversationSessionActive_ = false;
+                    companionWakeGreetingPending_ = false;
+                    companionListeningService_->setPaused(true);
                     window->setCompanionState(models::CompanionState::Idle);
+                    companionSpeechService_->speak(QStringLiteral("Going to sleep."));
+                    return;
+                }
+
+                if (text.isEmpty()) {
+                    companionListeningService_->setPaused(false);
+                    window->setCompanionState(models::CompanionState::Idle);
+
+                    if (companionConversationSessionActive_)
+                        companionListeningService_->listen();
+
                     return;
                 }
                 window->setCompanionState(models::CompanionState::Thinking);
+                companionListeningService_->setPaused(true);
                 companionConversationService_->ask(text);
             });
 
     connect(companionConversationService_,
             &services::CompanionConversationService::errorOccurred,
-            window, [window](const QString&) {
+            window, [this, window](const QString&) {
+                companionListeningService_->setPaused(false);
                 window->setCompanionState(models::CompanionState::Alert);
             });
 

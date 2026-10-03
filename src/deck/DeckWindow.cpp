@@ -4,6 +4,8 @@
 #include "deck/cards/DashboardCard.hpp"
 #include "deck/cards/AudioControlCard.hpp"
 #include "deck/cards/ControlDeckCard.hpp"
+#include "deck/cards/FeishinCard.hpp"
+#include "deck/cards/SystemMediaCard.hpp"
 #include "deck/companion/CompanionCard.hpp"
 #include "deck/navigation/PageManager.hpp"
 #include "deck/pages/DeckPage.hpp"
@@ -64,12 +66,7 @@ const std::initializer_list<PagePlan> kPagePlans = {
     // 720 pixels tall, so HAL owns this page instead of sharing it with
     // placeholder dashboard cards.
     {"Command", {}},
-    {"System",
-     {{"CPU", "Utilization", S::Medium, A::Cyan, St::Normal},
-      {"Memory", "In use", S::Medium, A::Cyan, St::Normal},
-      {"GPU", "Utilization", S::Medium, A::Purple, St::Normal},
-      {"Storage", "Capacity", S::Medium, A::None, St::Normal},
-      {"Network", "Throughput", S::Medium, A::None, St::Unavailable}}},
+    {"System", {}},
     {"Control Deck", {}},
     {"Expansion",
      {{"Future Module", "Reserved fourth screen", S::Wide, A::Purple, St::Empty},
@@ -111,17 +108,26 @@ void DeckWindow::buildPages() {
         // routed to it without exposing pages or cards.
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
             systemPage_ = page;
-        }
-        if (std::strcmp(plan.title, kCommandPageTitle) == 0) {
-            // HAL is the page-one identity; hide the redundant "Command"
-            // heading and give the optical core that vertical space.
+
             if (auto* header =
                     page->findChild<QWidget*>(
                         LegacyTheme::pageHeaderObjectName())) {
                 header->setVisible(false);
             }
+        }
+
+        if (std::strcmp(plan.title, kCommandPageTitle) == 0) {
+            // HAL owns page one. Hide the generic page header so the
+            // companion surface can use the full vertical canvas.
+            if (auto* header =
+                    page->findChild<QWidget*>(
+                        LegacyTheme::pageHeaderObjectName())) {
+                header->setVisible(false);
+            }
+
             companionCard_ = new CompanionCard();
             page->addCard(companionCard_);
+
             connect(
                 companionCard_,
                 &CompanionCard::stateRequested,
@@ -143,17 +149,21 @@ void DeckWindow::buildPages() {
                     setCompanionState(state);
                 });
         }
+
         if (std::strcmp(plan.title, kSystemPageTitle) == 0) {
-            systemAudioCard_ = new AudioControlCard();
-            page->addCard(systemAudioCard_);
-            connect(systemAudioCard_, &AudioControlCard::actionRequested, this,
-                    &DeckWindow::controlRequested);
+            systemMediaCard_ =
+                new cards::SystemMediaCard();
+
+            page->addCard(systemMediaCard_);
         }
+
         if (std::strcmp(plan.title, kControlDeckPageTitle) == 0) {
             controlDeckCard_ = new ControlDeckCard();
             page->addCard(controlDeckCard_);
             connect(controlDeckCard_, &ControlDeckCard::actionRequested, this,
                     &DeckWindow::controlRequested);
+            connect(controlDeckCard_, &ControlDeckCard::customActionRequested,
+                    this, &DeckWindow::customControlRequested);
         }
         for (const auto& cardPlan : plan.cards) {
             auto* card = new DashboardCard(QString::fromUtf8(cardPlan.title));
@@ -189,20 +199,36 @@ void DeckWindow::clearCompanionGazeTarget() {
 
 void DeckWindow::reportControlResult(models::ControlAction action, bool success,
                                      const QString& message) {
-    if (systemAudioCard_ != nullptr && models::isAudioAction(action)) {
-        systemAudioCard_->reportResult(success, message);
-    }
     if (controlDeckCard_ != nullptr) {
         controlDeckCard_->reportResult(action, success, message);
     }
 }
 
-void DeckWindow::receiveTelemetry(const models::MetricSample& sample) {
-    if (systemPage_ == nullptr) {
-        // No page presents system telemetry in this window; ignore safely.
-        return;
+void DeckWindow::receiveMediaState(
+    const QString& player,
+    const QString& title,
+    const QString& artist,
+    const QString& album,
+    const QString& artUrl,
+    bool playing) {
+
+    if (controlDeckCard_ != nullptr) {
+        controlDeckCard_->setMediaState(
+            player,
+            title,
+            artist,
+            album,
+            artUrl,
+            playing);
     }
-    systemPage_->receiveTelemetry(sample);
+}
+
+void DeckWindow::receiveTelemetry(
+    const models::MetricSample& sample) {
+
+    if (systemMediaCard_ != nullptr) {
+        systemMediaCard_->receiveTelemetry(sample);
+    }
 }
 
 void DeckWindow::showDeckFullscreen(QScreen* screen) {

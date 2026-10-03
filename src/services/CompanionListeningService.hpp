@@ -4,39 +4,32 @@
 
 #include <QObject>
 #include <QString>
-
+#include <QByteArray>
 class QProcess;
-class QTimer;
 
 namespace darkspark::services {
-
 class CompanionListeningService final : public QObject {
     Q_OBJECT
-
 public:
     explicit CompanionListeningService(QObject* parent = nullptr);
     ~CompanionListeningService() override;
-
 public slots:
     void listen();
     void stop();
-
+    void setPaused(bool paused);
 signals:
+    void wakeDetected();
     void listeningStarted();
     void transcriptionStarted();
     void transcriptionReady(const QString& text);
     void listeningFailed(const QString& message);
-
 private:
-    void stopRecordingAndTranscribe();
+    bool startHelper();
     QString findWhisperPython() const;
-
-    QProcess* recordProcess_;
-    QProcess* whisperProcess_;
-    QTimer* recordTimer_;
-    QString recordingPath_;
+    QProcess* helper_;
+    QByteArray output_;
+    bool paused_ = false;
+    bool stopping_ = false;
 };
-
-}  // namespace darkspark::services
-
+}
 #endif

@@ -45,6 +45,20 @@ void PageTransition::transitionTo(int toIndex, Direction direction) {
     }
 
     const int fromIndex = stack_->currentIndex();
+
+    // The System page contains an embedded QWebEngineView (Feishin).
+    // Sliding/fading a WebEngine surface under Wayland causes an expensive
+    // re-expose/repaint when returning to the page, producing a visible freeze.
+    // Keep navigation responsive by switching instantly whenever the System
+    // page is either the source or destination.
+    constexpr int kSystemPageIndex = 1;
+
+    if (fromIndex == kSystemPageIndex ||
+        toIndex == kSystemPageIndex) {
+        finishInstantly(toIndex);
+        return;
+    }
+
     if (running_ || toIndex == fromIndex) {
         // Already animating or no change: switch instantly to stay responsive.
         finishInstantly(toIndex);

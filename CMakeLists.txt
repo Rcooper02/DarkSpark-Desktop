@@ -35,7 +35,7 @@ option(DARKSPARK_WARNINGS_AS_ERRORS
     "Treat compiler warnings as errors (on for project CI/dev)" ON)
 
 # --- Dependencies (system only; no FetchContent) -----------------------------
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network DBus WebEngineWidgets)
 
 # Prefer the target build directory layout to stay out-of-tree.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -64,6 +64,13 @@ qt_add_executable(darkspark-desktop
     src/models/CompanionState.hpp
     src/models/GazeTarget.hpp
     src/models/ControlAction.hpp
+    src/models/DeckButtonConfig.hpp
+    src/deck/config/DeckLayoutStore.cpp
+    src/deck/config/DeckLayoutStore.hpp
+    src/deck/editor/DeckButtonEditor.cpp
+    src/deck/editor/DeckButtonEditor.hpp
+    src/deck/editor/InstalledAppPicker.cpp
+    src/deck/editor/InstalledAppPicker.hpp
     src/interfaces/ITelemetryProvider.hpp
     src/services/CpuTelemetryService.cpp
     src/services/CpuTelemetryService.hpp
@@ -75,6 +82,10 @@ qt_add_executable(darkspark-desktop
     src/services/CpuThermalService.hpp
     src/services/DesktopControlService.cpp
     src/services/DesktopControlService.hpp
+    src/services/DeckActionService.cpp
+    src/services/DeckActionService.hpp
+    src/services/MediaSessionService.cpp
+    src/services/MediaSessionService.hpp
     src/services/CompanionTrackingService.cpp
     src/services/CompanionTrackingService.hpp
     src/services/CompanionSpeechService.cpp
@@ -97,6 +108,10 @@ qt_add_executable(darkspark-desktop
     src/deck/cards/AudioControlCard.hpp
     src/deck/cards/ControlDeckCard.cpp
     src/deck/cards/ControlDeckCard.hpp
+    src/deck/cards/FeishinCard.cpp
+    src/deck/cards/FeishinCard.hpp
+    src/deck/cards/SystemMediaCard.cpp
+    src/deck/cards/SystemMediaCard.hpp
     src/deck/cards/GlassActionButton.cpp
     src/deck/cards/GlassActionButton.hpp
     src/deck/companion/CompanionCard.cpp
@@ -119,6 +134,8 @@ target_include_directories(darkspark-desktop PRIVATE
 target_link_libraries(darkspark-desktop PRIVATE
     Qt6::Widgets
     Qt6::Network
+    Qt6::DBus
+    Qt6::WebEngineWidgets
     darkspark_warnings)
 
 include(GNUInstallDirs)
